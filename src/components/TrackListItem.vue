@@ -203,7 +203,7 @@ export default {
       return this.type !== 'tracklist' && this.type !== 'cloudDisk';
     },
     showOrderNumber() {
-      return this.type === 'album';
+      return this.type === 'album' || this.type === 'playlist';
     },
     showAlbumName() {
       return this.type !== 'album' && this.type !== 'tracklist';

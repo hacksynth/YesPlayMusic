@@ -111,8 +111,11 @@ export default {
     },
     avatarUrl() {
       return this.data?.user?.avatarUrl && this.isLooseLoggedIn
-        ? `${this.data?.user?.avatarUrl}?param=512y512`
-        : 'http://s4.music.126.net/style/web2/img/default/default_avatar.jpg?param=60y60';
+        ? `${this.data.user.avatarUrl.replace(
+            /^http:/,
+            'https:'
+          )}?param=512y512`
+        : 'https://s4.music.126.net/style/web2/img/default/default_avatar.jpg?param=60y60';
     },
     hasCustomTitlebar() {
       return this.enableWin32Titlebar || this.enableLinuxTitlebar;
@@ -122,7 +125,10 @@ export default {
     const platform = window.yesPlayMusicNative?.platform;
     if (platform === 'win32') {
       this.enableWin32Titlebar = true;
-    } else if (platform === 'linux' && this.settings.linuxEnableCustomTitlebar) {
+    } else if (
+      platform === 'linux' &&
+      this.settings.linuxEnableCustomTitlebar
+    ) {
       this.enableLinuxTitlebar = true;
     }
   },

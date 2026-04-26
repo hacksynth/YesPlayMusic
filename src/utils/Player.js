@@ -561,6 +561,9 @@ export default class {
     if (autoplay && this._currentTrack.name) {
       this._scrobble(this.currentTrack, this._howler?.seek());
     }
+    if (autoplay) {
+      this._enabled = true;
+    }
     return getTrackDetail(id).then(data => {
       const track = data.songs[0];
       this._currentTrack = track;
@@ -586,6 +589,9 @@ export default class {
       if (source) {
         let replaced = false;
         if (track.id === this.currentTrackID) {
+          if (autoplay) {
+            this._enabled = true;
+          }
           this._playAudioSource(source, autoplay);
           replaced = true;
         }
@@ -615,7 +621,7 @@ export default class {
   }
   _cacheNextTrack() {
     let nextTrackID = this._isPersonalFM
-      ? this._personalFMNextTrack?.id ?? 0
+      ? (this._personalFMNextTrack?.id ?? 0)
       : this._getNextTrack()[0];
     if (!nextTrackID) return;
     if (this._personalFMTrack.id === nextTrackID) return;
@@ -883,6 +889,7 @@ export default class {
   play() {
     if (this._howler?.playing()) return;
 
+    this._enabled = true;
     this._howler?.play();
 
     this._howler?.once('play', () => {
