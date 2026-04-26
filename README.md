@@ -1,277 +1,201 @@
-<br />
-<p align="center">
-  <a href="https://music.qier222.com" target="blank">
-    <img src="images/logo.png" alt="Logo" width="156" height="156">
-  </a>
-  <h2 align="center" style="font-weight: 600">YesPlayMusic</h2>
+# YesPlayMusic
 
-  <p align="center">
-    高颜值的第三方网易云播放器
-    <br />
-    <a href="https://music.qier222.com" target="blank"><strong>🌎 访问DEMO</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;
-    <a href="#%EF%B8%8F-安装" target="blank"><strong>📦️ 下载安装包</strong></a>&nbsp;&nbsp;|&nbsp;&nbsp;
-    <a href="https://t.me/yesplaymusic" target="blank"><strong>💬 加入交流群</strong></a>
-    <br />
-    <br />
-  </p>
-</p>
+这是 `hacksynth/YesPlayMusic` fork，基于 YesPlayMusic 0.4.10 维护，主要用于自用构建、Docker 部署和 GitHub Actions 自动发布。
 
-[![Library][library-screenshot]](https://music.qier222.com)
+YesPlayMusic 是一个第三方网易云音乐播放器，支持网页登录、Electron 桌面端、PWA、MV、歌词、私人 FM、每日推荐、Last.fm Scrobble，并可配合 UnblockNeteaseMusic 使用。
 
-## 全新版本
+## 仓库地址
 
-全新 2.0 Alpha 测试版已发布，欢迎前往 [Releases](https://github.com/qier222/YesPlayMusic/releases) 页面下载。
-当前版本将会进入维护模式，除重大 bug 修复外，不会再更新新功能。
+- GitHub: <https://github.com/hacksynth/YesPlayMusic>
+- Docker 镜像: `ghcr.io/hacksynth/yesplaymusic:latest`
+- Release: <https://github.com/hacksynth/YesPlayMusic/releases>
 
-## ✨ 特性
+## 当前维护内容
 
-- ✅ 使用 Vue.js 全家桶开发
-- 🔴 网易云账号登录（扫码/手机/邮箱登录）
-- 📺 支持 MV 播放
-- 📃 支持歌词显示
-- 📻 支持私人 FM / 每日推荐歌曲
-- 🚫🤝 无任何社交功能
-- 🌎️ 海外用户可直接播放（需要登录网易云账号）
-- 🔐 支持 [UnblockNeteaseMusic](https://github.com/UnblockNeteaseMusic/server#音源清单)，自动使用[各类音源](https://github.com/UnblockNeteaseMusic/server#音源清单)替换变灰歌曲链接 （网页版不支持）
-  - 「各类音源」指默认启用的音源。
-  - YouTube 音源需自行安装 `yt-dlp`。
-- ~~✔️ 每日自动签到（手机端和电脑端同时签到）~~
-- 🌚 Light/Dark Mode 自动切换
-- 👆 支持 Touch Bar
-- 🖥️ 支持 PWA，可在 Chrome/Edge 里点击地址栏右边的 ➕ 安装到电脑
-- 🟥 支持 Last.fm Scrobble
-- ☁️ 支持音乐云盘
-- ⌨️ 自定义快捷键和全局快捷键
-- 🎧 支持 Mpris
-- 🛠 更多特性开发中
+- 使用 GitHub Actions 构建 Electron 客户端。
+- 使用 GitHub Actions 构建并推送 Docker 镜像到 GHCR。
+- Docker 运行时使用 Node 22，避免 API 依赖在 Node 14 下启动失败。
+- Docker 内置 `@neteasecloudmusicapienhanced/api@4.32.0`，启动时不再通过 `npx` 临时拉取最新版 API。
+- Web 构建兼容浏览器环境，避免 `process is not defined` 导致页面空白。
 
-## 📦️ 安装
+## Docker 部署
 
-Electron 版本由 [@hawtim](https://github.com/hawtim) 和 [@qier222](https://github.com/qier222) 适配并维护，支持 macOS、Windows、Linux。
+推荐直接使用 GHCR 镜像：
 
-访问本项目的 [Releases](https://github.com/qier222/YesPlayMusic/releases)
-页面下载安装包。
+```yaml
+services:
+  YesPlayMusic:
+    image: ghcr.io/hacksynth/yesplaymusic:latest
+    pull_policy: always
+    container_name: YesPlayMusic
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+      - ./docker/nginx.conf.example:/etc/nginx/http.d/default.conf:ro
+    ports:
+      - 80:80
+    restart: always
+    depends_on:
+      - UnblockNeteaseMusic
+    environment:
+      - NODE_TLS_REJECT_UNAUTHORIZED=0
+    networks:
+      my_network:
 
-- macOS 用户可以通过 Homebrew 来安装：`brew install --cask yesplaymusic`
+  UnblockNeteaseMusic:
+    image: pan93412/unblock-netease-music-enhanced
+    command: -o kugou kuwo migu bilibili pyncmd -p 80:443 -f 45.127.129.53 -e -
+    networks:
+      my_network:
+        aliases:
+          - music.163.com
+          - interface.music.163.com
+          - interface3.music.163.com
+          - interface.music.163.com.163jiasu.com
+          - interface3.music.163.com.163jiasu.com
+    restart: always
 
-- Windows 用户可以通过 Scoop 来安装：`scoop install extras/yesplaymusic`
-
-## 同类项目（排名无先后）
-
-欢迎大家通过 PR 分享你的项目，让更多人看到！
-
-- [algerkong/AlgerMusicPlayer](https://github.com/algerkong/AlgerMusicPlayer)
-- [asxez/MusicBox](https://github.com/asxez/MusicBox)
-- [lianchengwu/wmplayer](https://github.com/lianchengwu/wmplayer)
-
-## ⚙️ 部署至 Vercel
-
-除了下载安装包使用，你还可以将本项目部署到 Vercel 或你的服务器上。下面是部署到 Vercel 的方法。
-
-本项目的 Demo (https://music.qier222.com) 就是部署在 Vercel 上的网站。
-
-[![Powered by Vercel](https://www.datocms-assets.com/31049/1618983297-powered-by-vercel.svg)](https://vercel.com/?utm_source=ohmusic&utm_campaign=oss)
-
-1. 部署网易云 API，详情参见 [neteasecloudmusicapienhanced/api-enhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced)
-   。你也可以将 API 部署到 Vercel。
-
-2. 点击本仓库右上角的 Fork，复制本仓库到你的 GitHub 账号。
-
-3. 点击仓库的 Add File，选择 Create new file，输入 `vercel.json`，将下面的内容复制粘贴到文件中，并将 `https://your-netease-api.example.com` 替换为你刚刚部署的网易云 API 地址：
-
-```json
-{
-  "rewrites": [
-    {
-      "source": "/api/:match*",
-      "destination": "https://your-netease-api.example.com/:match*"
-    }
-  ]
-}
+networks:
+  my_network:
+    driver: bridge
 ```
 
-4. 打开 [Vercel.com](https://vercel.com)，使用 GitHub 登录。
-
-5. 点击 Import Git Repository 并选择你刚刚复制的仓库并点击 Import。
-
-6. 点击 PERSONAL ACCOUNT 旁边的 Select。
-
-7. 点击 Environment Variables，填写 Name 为 `VUE_APP_NETEASE_API_URL`，Value 为 `/api`，点击 Add。最后点击底部的 Deploy 就可以部署到
-   Vercel 了。
-
-## ⚙️ 部署到自己的服务器
-
-除了部署到 Vercel，你还可以部署到自己的服务器上
-
-1. 部署网易云 API，详情参见 [neteasecloudmusicapienhanced/api-enhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced)
-2. 克隆本仓库
+启动：
 
 ```sh
-git clone --recursive https://github.com/qier222/YesPlayMusic.git
+docker compose pull
+docker compose up -d
+docker compose logs -f --tail=100
 ```
 
-3. 安装依赖
+如果宿主机 80 端口已被占用，可以改成其他端口，例如：
+
+```yaml
+ports:
+  - 3001:80
+```
+
+访问地址对应为 `http://服务器IP:3001`。
+
+## 本地构建 Docker 镜像
+
+```sh
+docker build -t yesplaymusic .
+docker run -d --name YesPlayMusic -p 80:80 yesplaymusic
+```
+
+本地镜像也会同时运行前端 nginx 和网易云 API 服务。前端通过 `/api` 代理到容器内的 API。
+
+## 开发
+
+需要 Node.js 20.19 或更高版本，推荐 Node.js 22。
 
 ```sh
 npm install
-
+cp .env.example .env
+npm run serve
 ```
 
-4. （可选）使用 Nginx 反向代理 API，将 API 路径映射为 `/api`，如果 API 和网页不在同一个域名下的话（跨域），会有一些 bug。
+本地运行 API：
 
-5. 复制 `/.env.example` 文件为 `/.env`，修改里面 `VUE_APP_NETEASE_API_URL` 的值为网易云 API 地址。本地开发的话可以填写 API 地址为 `http://localhost:3000`，YesPlayMusic 地址为 `http://localhost:8080`。如果你使用了反向代理 API，可以填写 API 地址为 `/api`。
-
-```
-VUE_APP_NETEASE_API_URL=http://localhost:3000
+```sh
+npm run netease_api:run
 ```
 
-6. 编译打包
+构建 Web：
 
 ```sh
 npm run build
 ```
 
-7. 将 `/dist` 目录下的文件上传到你的 Web 服务器
-
-## ⚙️ 宝塔面板 docker 应用商店 部署
-
-1. 安装宝塔面板，前往[宝塔面板官网](https://www.bt.cn/new/download.html) ，选择正式版的脚本下载安装。
-
-2. 安装后登录宝塔面板，在左侧导航栏中点击 Docker，首次进入会提示安装 Docker 服务，点击立即安装，按提示完成安装
-
-3. 安装完成后在应用商店中找到 YesPlayMusic，点击安装，配置域名、端口等基本信息即可完成安装。
-
-4. 安装后在浏览器输入上一步骤设置的域名即可访问。
-
-## ⚙️ Docker 部署
-
-1. 构建 Docker Image
+构建 Electron：
 
 ```sh
-docker build -t yesplaymusic .
+npm run electron:build
 ```
 
-2. 启动 Docker Container
+运行测试：
 
 ```sh
-docker run -d --name YesPlayMusic -p 80:80 yesplaymusic
+npm test
 ```
 
-3. Docker Compose 启动
+## GitHub Actions
+
+本仓库包含两个主要工作流：
+
+- `Release`: push 到 `master` 时构建并上传 macOS、Windows、Linux artifacts；push `v*` tag 时发布到 GitHub Release。
+- `Docker`: push 到 `master` 或 `v*` tag 时构建 Docker 镜像并推送到 GHCR。
+
+创建新 release 的基本流程：
 
 ```sh
-docker-compose up -d
+git tag v0.4.10
+git push origin v0.4.10
 ```
 
-YesPlayMusic 地址为 `http://localhost`
+tag workflow 成功后，Release 页面会生成对应平台资产。
 
-## ⚙️ 部署至 Replit
+## 服务器部署
 
-1. 新建 Repl，选择 Bash 模板
+部署时进入保存 `docker-compose.yml` 的目录，拉取最新镜像并重启服务。
 
-2. 在 Replit shell 中运行以下命令
+如果宿主机 80 端口已被占用，可以将端口映射改为 `3001:80` 或其他可用端口。访问地址取决于实际服务器 IP、域名和端口。
+
+更新部署：
 
 ```sh
-bash <(curl -s -L https://raw.githubusercontent.com/qier222/YesPlayMusic/main/install-replit.sh)
+docker compose pull YesPlayMusic
+docker compose up -d YesPlayMusic
+docker compose logs -f --tail=100 YesPlayMusic
 ```
 
-3. 首次运行成功后，只需点击绿色按钮 `Run` 即可再次运行
+## 常见问题
 
-4. 由于 replit 个人版限制内存为 1G（教育版为 3G），构建过程中可能会失败，请再次运行上述命令或运行以下命令：
+### 页面空白
+
+先强制刷新浏览器缓存：
+
+```text
+Ctrl + F5
+```
+
+如果仍然空白，打开浏览器开发者工具查看 Console。之前遇到过的原因是构建产物中残留 `process.platform`，浏览器报错 `process is not defined`。当前版本已在 Vite 构建中定义 `process.platform`。
+
+### API 启动失败，提示 Object.hasOwn is not a function
+
+这是 Node 版本过低导致的。旧 Docker 运行时基于 `nginx:1.20.2-alpine`，通过 Alpine 包安装到的是 Node 14，而新版 API 依赖需要 Node 18/20+。
+
+当前 Dockerfile 已改为 Node 22 运行时，并固定 API 版本：
+
+```text
+@neteasecloudmusicapienhanced/api@4.32.0
+```
+
+### GHCR 镜像无法拉取
+
+如果服务器无法拉取 `ghcr.io/hacksynth/yesplaymusic:latest`，检查 GHCR package 是否公开。私有 package 需要先登录：
 
 ```sh
-cd /home/runner/${REPL_SLUG}/music && npm install && npm run build
+docker login ghcr.io
 ```
 
-## 👷‍♂️ 打包客户端
+### nginx 配置挂载路径
 
-如果在 Release 页面没有找到适合你的设备的安装包的话，你可以根据下面的步骤来打包自己的客户端。
+当前运行时镜像使用 Alpine 的 nginx 包，配置路径是：
 
-1. 打包 Electron 需要用到 Node.js 和 npm。可前往 [Node.js 官网](https://nodejs.org/zh-cn/) 下载安装包。
-
-2. 使用 `git clone --recursive https://github.com/qier222/YesPlayMusic.git` 克隆本仓库到本地。
-
-3. 使用 `npm install` 安装项目依赖。
-
-4. 复制 `/.env.example` 文件为 `/.env` 。
-
-5. 选择下列表格的命令来打包适合的你的安装包，打包出来的文件在 `/dist_electron` 目录下。了解更多信息可访问 [electron-builder 文档](https://www.electron.build/cli)
-
-| 命令                                       | 说明                      |
-| ------------------------------------------ | ------------------------- |
-| `npm run electron:build -- --windows nsis:ia32`  | Windows 32 位             |
-| `npm run electron:build -- --windows nsis:arm64` | Windows ARM               |
-| `npm run electron:build -- --linux deb:armv7l`   | Debian armv7l（树莓派等） |
-| `npm run electron:build -- --macos dir:arm64`    | macOS ARM                 |
-
-## :computer: 配置开发环境
-
-本项目由 [api-enhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) 提供 API。
-
-运行本项目
-
-```shell
-# 安装依赖
-npm install
-
-# 创建本地环境变量
-cp .env.example .env
-
-# 运行（网页端）
-npm run serve
-
-# 运行（electron）
-npm run electron:serve
+```text
+/etc/nginx/http.d/default.conf
 ```
 
-本地运行 api-enhanced，或者将 API [部署至 Vercel](#%EF%B8%8F-部署至-vercel)
+不要挂载到旧路径 `/etc/nginx/conf.d/default.conf`，否则自定义 nginx 配置不会生效。
 
-```shell
-# 运行 API （默认 3000 端口）
-npm run netease_api:run
-```
+## 上游项目
 
-## ☑️ Todo
+- YesPlayMusic: <https://github.com/qier222/YesPlayMusic>
+- api-enhanced: <https://github.com/neteasecloudmusicapienhanced/api-enhanced>
+- UnblockNeteaseMusic: <https://github.com/UnblockNeteaseMusic/server>
 
-查看 Todo 请访问本项目的 [Projects](https://github.com/qier222/YesPlayMusic/projects/1)
+## 许可
 
-欢迎提 Issue 和 Pull request。
-
-## 📜 开源许可
-
-本项目仅供个人学习研究使用，禁止用于商业及非法用途。
-
-基于 [MIT license](https://opensource.org/licenses/MIT) 许可进行开源。
-
-## 灵感来源
-
-API 源代码来自 [neteasecloudmusicapienhanced/api-enhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced)
-
-- [Apple Music](https://music.apple.com)
-- [YouTube Music](https://music.youtube.com)
-- [Spotify](https://www.spotify.com)
-- [网易云音乐](https://music.163.com)
-
-## 🖼️ 截图
-
-![lyrics][lyrics-screenshot]
-![library-dark][library-dark-screenshot]
-![album][album-screenshot]
-![home-2][home-2-screenshot]
-![artist][artist-screenshot]
-![search][search-screenshot]
-![home][home-screenshot]
-![explore][explore-screenshot]
-
-<!-- MARKDOWN LINKS & IMAGES -->
-<!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
-
-[album-screenshot]: images/album.png
-[artist-screenshot]: images/artist.png
-[explore-screenshot]: images/explore.png
-[home-screenshot]: images/home.png
-[home-2-screenshot]: images/home-2.png
-[lyrics-screenshot]: images/lyrics.png
-[library-screenshot]: images/library.png
-[library-dark-screenshot]: images/library-dark.png
-[search-screenshot]: images/search.png
+本项目基于 MIT License。仅供个人学习研究使用，请勿用于商业或非法用途。
