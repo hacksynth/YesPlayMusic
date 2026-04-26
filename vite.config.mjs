@@ -17,6 +17,7 @@ export default defineConfig(({ mode }) => {
     'process.env.IS_ELECTRON': JSON.stringify(isElectron),
     'process.env.NODE_ENV': JSON.stringify(mode),
     'process.env.BASE_URL': JSON.stringify('/'),
+    'process.platform': JSON.stringify(process.platform),
     'process.env.VUE_APP_NETEASE_API_URL': JSON.stringify(
       env.VUE_APP_NETEASE_API_URL || '/api'
     ),
