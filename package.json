@@ -155,7 +155,13 @@
       ],
       "icon": "build/icons/icon.ico",
       "publish": [
-        "github"
+        {
+          "provider": "github",
+          "owner": "hacksynth",
+          "repo": "YesPlayMusic",
+          "vPrefixedTagName": true,
+          "releaseType": "release"
+        }
       ]
     },
     "linux": {
