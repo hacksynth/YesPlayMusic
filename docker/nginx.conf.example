@@ -28,8 +28,8 @@ server {
 
   location /toubiec-wyapi/ {
     proxy_ssl_server_name   on;
-    proxy_set_header        Host wyapi.toubiec.cn;
-    proxy_pass              https://wyapi.toubiec.cn/api/;
+    proxy_set_header        Host nextmusic.toubiec.cn;
+    proxy_pass              https://nextmusic.toubiec.cn/api/;
   }
 
   location /toubiec-nextmusic/ {
