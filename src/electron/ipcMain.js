@@ -24,7 +24,7 @@ const log = text => {
 
 const LASTFM_API_URL = 'https://ws.audioscrobbler.com/2.0/';
 const TOUBIEC_API_URL = (
-  process.env.VUE_APP_TOUBIEC_API_URL || 'https://nextmusic.toubiec.cn/api'
+  process.env.VUE_APP_TOUBIEC_API_URL || 'https://wyapi.toubiec.cn/api'
 ).replace(/\/$/, '');
 
 const ALLOWED_LASTFM_METHODS = new Set([
