@@ -33,7 +33,7 @@
     </div>
     <div class="title-and-artist">
       <div class="container">
-        <div class="title">
+        <div class="title" @click.stop="playTrackFromList">
           {{ track.name }}
           <span v-if="isSubTitle" :title="subTitle" class="sub-title">
             ({{ subTitle }})
@@ -120,7 +120,11 @@ export default {
         : this.trackProp;
     },
     playable() {
-      return this.track?.privilege?.pl > 0 || this.track?.playable;
+      return (
+        this.track?.privilege?.pl > 0 ||
+        this.track?.playable ||
+        this.track?.privilege?.fee === 1
+      );
     },
     imgUrl() {
       let image =

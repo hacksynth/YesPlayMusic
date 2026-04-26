@@ -1,5 +1,5 @@
 <template>
-  <button :style="buttonStyle" :class="color">
+  <button :style="buttonStyle" :class="color" @click="$emit('click', $event)">
     <svg-icon
       v-if="iconClass !== null"
       :icon-class="iconClass"
@@ -12,6 +12,7 @@
 <script>
 export default {
   name: 'ButtonTwoTone',
+  emits: ['click'],
   props: {
     iconClass: {
       type: String,
