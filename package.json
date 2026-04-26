@@ -212,5 +212,8 @@
       "perMachine": true,
       "deleteAppDataOnUninstall": true
     }
+  },
+  "overrides": {
+    "nan": "2.26.2"
   }
 }
