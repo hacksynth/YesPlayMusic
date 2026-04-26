@@ -11,11 +11,11 @@
       <input
         class="native-slider progress-slider"
         type="range"
-        :value="player.progress"
+        :value="progressValue"
         :min="0"
         :max="player.currentTrackDuration"
         step="1"
-        :title="formatTrackTime(player.progress)"
+        :title="formatTrackTime(progressValue)"
         :style="progressSliderStyle"
         @input="setProgressFromEvent"
         @change="setProgressFromEvent"
@@ -193,6 +193,13 @@ export default {
   components: {
     ButtonIcon,
   },
+  data() {
+    return {
+      progressTimer: null,
+      displayedProgress: 0,
+      isSeekingProgress: false,
+    };
+  },
   computed: {
     ...mapState(['player', 'settings', 'data']),
     currentTrack() {
@@ -209,6 +216,11 @@ export default {
     playing() {
       return this.player.playing;
     },
+    progressValue() {
+      return this.isSeekingProgress
+        ? this.displayedProgress
+        : this.displayedProgress || this.player.progress || 0;
+    },
     audioSource() {
       return this.player._howler?._src.includes('kuwo.cn')
         ? '音源来自酷我音乐'
@@ -217,7 +229,7 @@ export default {
     progressSliderStyle() {
       const duration = this.player.currentTrackDuration || 1;
       return {
-        '--slider-percent': `${(this.player.progress / duration) * 100}%`,
+        '--slider-percent': `${(this.progressValue / duration) * 100}%`,
       };
     },
     volumeSliderStyle() {
@@ -228,9 +240,11 @@ export default {
   },
   mounted() {
     this.setupMediaControls();
+    this.startProgressTimer();
     window.addEventListener('keydown', this.handleKeydown);
   },
   beforeDestroy() {
+    clearInterval(this.progressTimer);
     window.removeEventListener('keydown', this.handleKeydown);
   },
   methods: {
@@ -258,8 +272,22 @@ export default {
     formatTrackTime(value) {
       return formatTrackTime(value);
     },
+    startProgressTimer() {
+      clearInterval(this.progressTimer);
+      this.displayedProgress = this.player.seek(null, false) ?? 0;
+      this.progressTimer = setInterval(() => {
+        if (this.isSeekingProgress) return;
+        this.displayedProgress = this.player.seek(null, false) ?? 0;
+      }, 500);
+    },
     setProgressFromEvent(event) {
-      this.player.progress = Number(event.target.value);
+      const value = Number(event.target.value);
+      this.isSeekingProgress = event.type !== 'change';
+      this.displayedProgress = value;
+      this.player.progress = value;
+      if (event.type === 'change') {
+        this.isSeekingProgress = false;
+      }
     },
     setVolumeFromEvent(event) {
       this.player.volume = Number(event.target.value);

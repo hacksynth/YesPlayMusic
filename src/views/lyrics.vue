@@ -127,7 +127,7 @@
               </div>
             </div>
             <div class="progress-bar">
-              <span>{{ formatTrackTime(player.progress) || '0:00' }}</span>
+              <span>{{ formatTrackTime(progressValue) || '0:00' }}</span>
               <div class="slider">
                 <input
                   class="native-slider progress-slider"
@@ -335,6 +335,7 @@ export default {
       isFullscreen: !!document.fullscreenElement,
       rightClickLyric: null,
       seekingProgress: null,
+      displayedProgress: 0,
     };
   },
   computed: {
@@ -351,7 +352,7 @@ export default {
       },
     },
     progressValue() {
-      return this.seekingProgress ?? this.player.progress ?? 0;
+      return this.seekingProgress ?? this.displayedProgress ?? 0;
     },
     progressSliderStyle() {
       const duration = this.player.currentTrackDuration || 1;
@@ -615,6 +616,7 @@ export default {
     setProgressFromEvent(event) {
       const value = Number(event.target.value);
       this.seekingProgress = value;
+      this.displayedProgress = value;
       this.player.progress = value;
       if (event.type === 'change') {
         this.seekingProgress = null;
@@ -657,6 +659,9 @@ export default {
       clearInterval(this.lyricsInterval);
       this.lyricsInterval = setInterval(() => {
         const progress = this.player.seek(null, false) ?? 0;
+        if (this.seekingProgress === null) {
+          this.displayedProgress = progress;
+        }
         let oldHighlightLyricIndex = this.highlightLyricIndex;
         this.highlightLyricIndex = this.lyric.findIndex((l, index) => {
           const nextLyric = this.lyric[index + 1];
