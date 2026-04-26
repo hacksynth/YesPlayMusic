@@ -6,7 +6,6 @@ import { getPlaylistDetail, intelligencePlaylist } from '@/api/playlist';
 import { getLyric, getMP3, getTrackDetail, scrobble } from '@/api/track';
 import { getToubiecLevelsByQuality, getToubiecSongUrl } from '@/api/toubiec';
 import store from '@/store';
-import { isAccountLoggedIn } from '@/utils/auth';
 import { cacheTrackSource, getTrackSource } from '@/utils/db';
 import { isCreateMpris, isCreateTray } from '@/utils/platform';
 import { Howl, Howler } from 'howler';
@@ -42,6 +41,27 @@ const excludeSaveKeys = [
 
 function isVipOnlyTrack(track) {
   return track?.fee === 1 || track?.privilege?.fee === 1;
+}
+
+function normalizeAudioSourceUrl(url) {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const canUseHttps =
+      parsed.protocol === 'http:' &&
+      (parsed.hostname === 'music.163.com' ||
+        parsed.hostname.endsWith('.music.126.net'));
+
+    if (canUseHttps) {
+      parsed.protocol = 'https:';
+      return parsed.toString();
+    }
+  } catch {
+    return url;
+  }
+
+  return url;
 }
 
 function setTitle(track) {
@@ -426,28 +446,22 @@ export default class {
     return null;
   }
   _getAudioSourceFromNetease(track) {
-    if (isAccountLoggedIn()) {
-      return getMP3(track.id).then(result => {
-        if (!result.data[0]) return null;
-        if (!result.data[0].url) return null;
-        if (
-          result.data[0].freeTrialInfo !== null &&
-          process.env.IS_ELECTRON === true &&
-          store.state.settings.enableUnblockNeteaseMusic !== false
-        ) {
-          return null;
-        }
-        const source = result.data[0].url.replace(/^http:/, 'https:');
-        if (store.state.settings.automaticallyCacheSongs) {
-          cacheTrackSource(track, source, result.data[0].br);
-        }
-        return source;
-      });
-    } else {
-      return new Promise(resolve => {
-        resolve(`https://music.163.com/song/media/outer/url?id=${track.id}`);
-      });
-    }
+    return getMP3(track.id).then(result => {
+      if (!result.data[0]) return null;
+      if (!result.data[0].url) return null;
+      if (
+        result.data[0].freeTrialInfo !== null &&
+        process.env.IS_ELECTRON === true &&
+        store.state.settings.enableUnblockNeteaseMusic !== false
+      ) {
+        return null;
+      }
+      const source = normalizeAudioSourceUrl(result.data[0].url);
+      if (store.state.settings.automaticallyCacheSongs) {
+        cacheTrackSource(track, source, result.data[0].br);
+      }
+      return source;
+    });
   }
   async _getAudioSourceFromUnblockMusic(track) {
     console.debug(`[debug][Player.js] _getAudioSourceFromUnblockMusic`);

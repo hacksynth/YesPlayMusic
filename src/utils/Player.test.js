@@ -128,4 +128,45 @@ describe('Player', () => {
     expect(() => player.playNextTrack()).not.toThrow();
     expect(player.playNextTrack()).toBe(false);
   });
+
+  it('uses the API song URL source even when the user is not logged in', async () => {
+    const Player = await loadPlayer();
+    const { getMP3 } = await import('@/api/track');
+    const { isAccountLoggedIn } = await import('@/utils/auth');
+    getMP3.mockResolvedValue({
+      data: [
+        {
+          url: 'http://er.sycdn.kuwo.cn/song.mp3',
+          br: 128000,
+          freeTrialInfo: null,
+        },
+      ],
+    });
+    isAccountLoggedIn.mockReturnValue(false);
+
+    const player = new Player();
+    const source = await player._getAudioSourceFromNetease({ id: 2600493765 });
+
+    expect(getMP3).toHaveBeenCalledWith(2600493765);
+    expect(source).toBe('http://er.sycdn.kuwo.cn/song.mp3');
+  });
+
+  it('upgrades native Netease media URLs to HTTPS', async () => {
+    const Player = await loadPlayer();
+    const { getMP3 } = await import('@/api/track');
+    getMP3.mockResolvedValue({
+      data: [
+        {
+          url: 'http://m701.music.126.net/song.mp3',
+          br: 320000,
+          freeTrialInfo: null,
+        },
+      ],
+    });
+
+    const player = new Player();
+    const source = await player._getAudioSourceFromNetease({ id: 1 });
+
+    expect(source).toBe('https://m701.music.126.net/song.mp3');
+  });
 });
