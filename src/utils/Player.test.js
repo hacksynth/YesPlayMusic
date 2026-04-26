@@ -77,6 +77,7 @@ const createHowler = () => {
     playing: vi.fn(() => playing),
     fade: vi.fn(),
     once: vi.fn((event, callback) => callback()),
+    volume: vi.fn(),
     seek: vi.fn(value => {
       if (value !== undefined) currentTime = value;
       return currentTime;
@@ -118,6 +119,24 @@ describe('Player', () => {
 
     expect(player.seek(0)).toBe(0);
     expect(player._howler.seek).toHaveBeenCalledWith(0);
+  });
+
+  it('keeps progress and volume state in sync with Howler', async () => {
+    const Player = await loadPlayer();
+    const player = new Player();
+    player._howler = createHowler();
+
+    player.progress = 42;
+    expect(player.progress).toBe(42);
+    expect(player._howler.seek).toHaveBeenCalledWith(42);
+
+    player.volume = 1.5;
+    expect(player.volume).toBe(1);
+    expect(player._howler.volume).toHaveBeenCalledWith(1);
+
+    player.volume = -1;
+    expect(player.volume).toBe(0);
+    expect(player._howler.volume).toHaveBeenCalledWith(0);
   });
 
   it('does not throw when next is called with an empty queue', async () => {

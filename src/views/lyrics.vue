@@ -90,16 +90,17 @@
                     />
                   </button-icon>
                   <div class="volume-bar">
-                    <vue-slider
-                      v-model="volume"
+                    <input
+                      class="native-slider volume-slider"
+                      type="range"
+                      :value="volume"
                       :min="0"
                       :max="1"
-                      :interval="0.01"
-                      :drag-on-click="true"
-                      :duration="0"
-                      tooltip="none"
-                      :dot-size="12"
-                    ></vue-slider>
+                      step="0.01"
+                      :style="volumeSliderStyle"
+                      @input="setVolumeFromEvent"
+                      @change="setVolumeFromEvent"
+                    />
                   </div>
                 </div>
                 <div class="buttons">
@@ -128,19 +129,18 @@
             <div class="progress-bar">
               <span>{{ formatTrackTime(player.progress) || '0:00' }}</span>
               <div class="slider">
-                <vue-slider
-                  v-model="player.progress"
+                <input
+                  class="native-slider progress-slider"
+                  type="range"
+                  :value="progressValue"
                   :min="0"
                   :max="player.currentTrackDuration"
-                  :interval="1"
-                  :drag-on-click="true"
-                  :duration="0"
-                  :dot-size="12"
-                  :height="2"
-                  :tooltip-formatter="formatTrackTime"
-                  :lazy="true"
-                  :silent="true"
-                ></vue-slider>
+                  step="1"
+                  :title="formatTrackTime(progressValue)"
+                  :style="progressSliderStyle"
+                  @input="setProgressFromEvent"
+                  @change="setProgressFromEvent"
+                />
               </div>
               <span>{{ formatTrackTime(player.currentTrackDuration) }}</span>
             </div>
@@ -303,7 +303,6 @@
 // Some of the codes are from https://github.com/sl1673495/vue-netease-music
 
 import { mapState, mapMutations, mapActions } from 'vuex';
-import VueSlider from 'vue-slider-component';
 import ContextMenu from '@/components/ContextMenu.vue';
 import { formatTrackTime } from '@/utils/common';
 import { getLyric } from '@/api/track';
@@ -318,7 +317,6 @@ import locale from '@/locale';
 export default {
   name: 'Lyrics',
   components: {
-    VueSlider,
     ButtonIcon,
     ContextMenu,
   },
@@ -336,6 +334,7 @@ export default {
       date: this.formatTime(new Date()),
       isFullscreen: !!document.fullscreenElement,
       rightClickLyric: null,
+      seekingProgress: null,
     };
   },
   computed: {
@@ -350,6 +349,20 @@ export default {
       set(value) {
         this.player.volume = value;
       },
+    },
+    progressValue() {
+      return this.seekingProgress ?? this.player.progress ?? 0;
+    },
+    progressSliderStyle() {
+      const duration = this.player.currentTrackDuration || 1;
+      return {
+        '--slider-percent': `${(this.progressValue / duration) * 100}%`,
+      };
+    },
+    volumeSliderStyle() {
+      return {
+        '--slider-percent': `${this.volume * 100}%`,
+      };
     },
     imageUrl() {
       return this.player.currentTrack?.al?.picUrl + '?param=1024y1024';
@@ -598,6 +611,17 @@ export default {
     },
     formatTrackTime(value) {
       return formatTrackTime(value);
+    },
+    setProgressFromEvent(event) {
+      const value = Number(event.target.value);
+      this.seekingProgress = value;
+      this.player.progress = value;
+      if (event.type === 'change') {
+        this.seekingProgress = null;
+      }
+    },
+    setVolumeFromEvent(event) {
+      this.player.volume = Number(event.target.value);
     },
     clickLyricLine(value, startPlay = false) {
       // TODO: 双击选择还会选中文字，考虑搞个右键菜单复制歌词
@@ -848,7 +872,7 @@ export default {
 
       .slider {
         width: 100%;
-        flex-grow: grow;
+        flex-grow: 1;
         padding: 0 10px;
       }
 
@@ -857,6 +881,92 @@ export default {
         opacity: 0.58;
         min-width: 28px;
       }
+    }
+
+    .native-slider {
+      display: block;
+      width: 100%;
+      height: 14px;
+      margin: 0;
+      padding: 0;
+      background: transparent;
+      cursor: pointer;
+      appearance: none;
+    }
+
+    .native-slider::-webkit-slider-runnable-track {
+      height: 2px;
+      border-radius: 15px;
+      background: linear-gradient(
+        to right,
+        var(--color-primary) 0%,
+        var(--color-primary) var(--slider-percent),
+        rgba(128, 128, 128, 0.22) var(--slider-percent),
+        rgba(128, 128, 128, 0.22) 100%
+      );
+    }
+
+    .native-slider::-webkit-slider-thumb {
+      width: 12px;
+      height: 12px;
+      margin-top: -5px;
+      border: 0;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0.5px 0.5px 2px 1px rgba(0, 0, 0, 0.12);
+      appearance: none;
+    }
+
+    .native-slider::-moz-range-track {
+      height: 2px;
+      border-radius: 15px;
+      background: rgba(128, 128, 128, 0.22);
+    }
+
+    .native-slider::-moz-range-progress {
+      height: 2px;
+      border-radius: 15px;
+      background: var(--color-primary);
+    }
+
+    .native-slider::-moz-range-thumb {
+      width: 12px;
+      height: 12px;
+      border: 0;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0.5px 0.5px 2px 1px rgba(0, 0, 0, 0.12);
+    }
+
+    .volume-control .native-slider::-webkit-slider-runnable-track {
+      background: linear-gradient(
+        to right,
+        var(--color-text) 0%,
+        var(--color-text) var(--slider-percent),
+        rgba(128, 128, 128, 0.22) var(--slider-percent),
+        rgba(128, 128, 128, 0.22) 100%
+      );
+    }
+
+    .volume-control:hover .native-slider::-webkit-slider-runnable-track {
+      background: linear-gradient(
+        to right,
+        var(--color-primary) 0%,
+        var(--color-primary) var(--slider-percent),
+        rgba(128, 128, 128, 0.22) var(--slider-percent),
+        rgba(128, 128, 128, 0.22) 100%
+      );
+    }
+
+    .volume-control .native-slider::-moz-range-track,
+    .volume-control .native-slider::-moz-range-progress {
+      background: var(--color-text);
+      opacity: 0.8;
+    }
+
+    .volume-control:hover .native-slider::-moz-range-track,
+    .volume-control:hover .native-slider::-moz-range-progress {
+      background: var(--color-primary);
     }
 
     .media-controls {

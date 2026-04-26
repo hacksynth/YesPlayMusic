@@ -172,8 +172,9 @@ export default class {
     return this._volume;
   }
   set volume(volume) {
-    this._volume = volume;
-    this._howler?.volume(volume);
+    const nextVolume = Math.min(1, Math.max(0, Number(volume) || 0));
+    this._volume = nextVolume;
+    this._howler?.volume(nextVolume);
   }
   get list() {
     return this.shuffle ? this._shuffledList : this._list;
@@ -224,8 +225,10 @@ export default class {
     return this._progress;
   }
   set progress(value) {
+    const nextProgress = Math.max(0, Number(value) || 0);
+    this._progress = nextProgress;
     if (this._howler) {
-      this._howler.seek(value);
+      this._howler.seek(nextProgress);
       if (isCreateMpris) {
         ipcRenderer?.send('seeked', this._howler.seek());
       }
