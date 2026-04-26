@@ -44,7 +44,7 @@ const CSP_POLICY = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https://*.music.126.net https://*.last.fm data:",
-  "media-src 'self' https://*.music.126.net blob:",
+  "media-src 'self' https://*.music.126.net https://music.163.com blob:",
   "connect-src 'self' https://music.163.com https://*.last.fm",
   "frame-src 'none'",
   "object-src 'none'",
