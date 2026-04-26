@@ -5,7 +5,7 @@ RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.tuna.tsinghua.edu.cn/g' /etc/apk/re
 	apk add --no-cache python3 make g++ git
 COPY package.json package-lock.json ./
 RUN npm config set registry https://registry.npmmirror.com && \
-    npm ci
+    npm ci --ignore-scripts
 COPY . .
 RUN npm run build
 

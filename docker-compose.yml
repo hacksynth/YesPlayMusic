@@ -1,8 +1,7 @@
 services:
   YesPlayMusic:
-    build:
-      context: .
-    image: yesplaymusic
+    image: ghcr.io/hacksynth/yesplaymusic:latest
+    pull_policy: always
     container_name: YesPlayMusic
     volumes:
       - /etc/localtime:/etc/localtime:ro
