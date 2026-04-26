@@ -28,6 +28,7 @@ const loadPlayer = async () => {
     getToubiecLevelsByQuality: vi.fn(),
     getToubiecSongUrl: vi.fn(),
   }));
+  vi.doMock('md5', () => ({ default: vi.fn(value => `md5:${value}`) }));
   vi.doMock('@/store', () => ({
     default: {
       state: {

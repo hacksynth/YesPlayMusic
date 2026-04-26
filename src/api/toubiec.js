@@ -1,8 +1,13 @@
 import axios from 'axios';
+import md5 from 'md5';
 
-const TOUBIEC_API_URL = (
-  process.env.VUE_APP_TOUBIEC_API_URL || 'https://nextmusic.toubiec.cn/api'
-).replace(/\/$/, '');
+const TOUBIEC_API_URLS = [
+  process.env.VUE_APP_TOUBIEC_API_URL,
+  'https://wyapi.toubiec.cn/api',
+  'https://nextmusic.toubiec.cn/api',
+]
+  .filter(Boolean)
+  .map(url => url.replace(/\/$/, ''));
 
 const MUSIC_QUALITY_TO_LEVEL = {
   128000: 'standard',
@@ -33,16 +38,46 @@ export function getToubiecSongUrl(id, level) {
     });
   }
 
-  return axios
-    .post(
-      `${TOUBIEC_API_URL}/getSongUrl`,
-      {
-        id: String(id),
-        level,
-      },
-      {
-        timeout: 15000,
-      }
-    )
-    .then(response => response.data);
+  return requestToubiec('getSongUrl', {
+    id: String(id),
+    level,
+  });
+}
+
+async function getToubiecToken(baseURL) {
+  const response = await axios.get(`${baseURL}/getip`, {
+    timeout: 10000,
+  });
+  const ip = response.data?.data?.ip;
+  if (response.data?.code !== 200 || !ip) {
+    throw new Error('failed to get toubiec auth ip');
+  }
+
+  return md5(`suxiaoqings:${ip}`);
+}
+
+async function requestToubiec(path, payload) {
+  let lastError = null;
+
+  for (const baseURL of TOUBIEC_API_URLS) {
+    try {
+      const token = await getToubiecToken(baseURL);
+      const response = await axios.post(
+        `${baseURL}/${path}`,
+        {
+          ...payload,
+          token,
+        },
+        {
+          timeout: 15000,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      lastError = error;
+      console.debug(`[debug][toubiec.js] ${baseURL}/${path} failed`, error);
+    }
+  }
+
+  throw lastError;
 }

@@ -45,7 +45,7 @@ const CSP_POLICY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' https://*.music.126.net https://*.last.fm data:",
   "media-src 'self' http: https: blob: data:",
-  "connect-src 'self' https://music.163.com https://*.last.fm https://nextmusic.toubiec.cn",
+  "connect-src 'self' https://music.163.com https://*.last.fm https://wyapi.toubiec.cn https://nextmusic.toubiec.cn",
   "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",
