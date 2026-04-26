@@ -118,7 +118,7 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "qier222",
+        "owner": "hacksynth",
         "repo": "YesPlayMusic",
         "vPrefixedTagName": true,
         "releaseType": "draft"

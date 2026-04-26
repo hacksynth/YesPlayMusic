@@ -60,7 +60,7 @@ jobs:
       - name: Install UNM dependencies for macOS
         if: runner.os == 'macOS'
         run: |
-          npm install --no-save --ignore-scripts \
+          npm install --no-save --ignore-scripts --force \
             @unblockneteasemusic/rust-napi-darwin-x64@${{steps.get_unm_version.outputs.unmver}} \
             @unblockneteasemusic/rust-napi-darwin-arm64@${{steps.get_unm_version.outputs.unmver}} \
             dmg-license
@@ -69,7 +69,7 @@ jobs:
       - name: Install UNM dependencies for Linux
         if: runner.os == 'Linux'
         run: |
-          npm install --no-save --ignore-scripts \
+          npm install --no-save --ignore-scripts --force \
             @unblockneteasemusic/rust-napi-linux-x64-gnu@${{steps.get_unm_version.outputs.unmver}} \
             @unblockneteasemusic/rust-napi-linux-arm64-gnu@${{steps.get_unm_version.outputs.unmver}} \
             @unblockneteasemusic/rust-napi-linux-arm-gnueabihf@${{steps.get_unm_version.outputs.unmver}}
