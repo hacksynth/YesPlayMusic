@@ -8,6 +8,9 @@ on:
       - v*
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   release:
     runs-on: ${{ matrix.os }}
@@ -77,7 +80,7 @@ jobs:
 
       - name: Build/release Electron app
         env:
-          GH_TOKEN: ${{ secrets.github_token }}
+          GH_TOKEN: ${{ github.token }}
           VUE_APP_NETEASE_API_URL: /api
           VUE_APP_ELECTRON_API_URL: /api
           VUE_APP_ELECTRON_API_URL_DEV: http://127.0.0.1:10754
@@ -89,7 +92,15 @@ jobs:
           npm test
           npm audit --omit=dev --audit-level=high
           if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
-            npm run electron:publish
+            export IS_ELECTRON=true
+            npm run build
+            if [[ "${RUNNER_OS}" == "Windows" ]]; then
+              npx electron-builder -p always -w
+            elif [[ "${RUNNER_OS}" == "macOS" ]]; then
+              npx electron-builder -p always -m
+            else
+              npx electron-builder -p always -l
+            fi
           else
             npm run electron:build
           fi
