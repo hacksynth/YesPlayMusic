@@ -8,19 +8,18 @@
       }"
       @click.stop
     >
-      <vue-slider
-        v-model="player.progress"
+      <input
+        class="native-slider progress-slider"
+        type="range"
+        :value="player.progress"
         :min="0"
         :max="player.currentTrackDuration"
-        :interval="1"
-        :drag-on-click="true"
-        :duration="0"
-        :dot-size="12"
-        :height="2"
-        :tooltip-formatter="formatTrackTime"
-        :lazy="true"
-        :silent="true"
-      ></vue-slider>
+        step="1"
+        :title="formatTrackTime(player.progress)"
+        :style="progressSliderStyle"
+        @input="setProgressFromEvent"
+        @change="setProgressFromEvent"
+      />
     </div>
     <div class="controls">
       <div class="playing">
@@ -154,16 +153,17 @@
               />
             </button-icon>
             <div class="volume-bar">
-              <vue-slider
-                v-model="volume"
+              <input
+                class="native-slider volume-slider"
+                type="range"
+                :value="volume"
                 :min="0"
                 :max="1"
-                :interval="0.01"
-                :drag-on-click="true"
-                :duration="0"
-                tooltip="none"
-                :dot-size="12"
-              ></vue-slider>
+                step="0.01"
+                :style="volumeSliderStyle"
+                @input="setVolumeFromEvent"
+                @change="setVolumeFromEvent"
+              />
             </div>
           </div>
 
@@ -185,7 +185,6 @@ import { mapState, mapMutations, mapActions } from 'vuex';
 import '@/assets/css/slider.css';
 
 import ButtonIcon from '@/components/ButtonIcon.vue';
-import VueSlider from 'vue-slider-component';
 import { goToListSource, hasListSource } from '@/utils/playList';
 import { formatTrackTime } from '@/utils/common';
 
@@ -193,7 +192,6 @@ export default {
   name: 'Player',
   components: {
     ButtonIcon,
-    VueSlider,
   },
   computed: {
     ...mapState(['player', 'settings', 'data']),
@@ -215,6 +213,17 @@ export default {
       return this.player._howler?._src.includes('kuwo.cn')
         ? '音源来自酷我音乐'
         : '';
+    },
+    progressSliderStyle() {
+      const duration = this.player.currentTrackDuration || 1;
+      return {
+        '--slider-percent': `${(this.player.progress / duration) * 100}%`,
+      };
+    },
+    volumeSliderStyle() {
+      return {
+        '--slider-percent': `${this.volume * 100}%`,
+      };
     },
   },
   mounted() {
@@ -248,6 +257,12 @@ export default {
     },
     formatTrackTime(value) {
       return formatTrackTime(value);
+    },
+    setProgressFromEvent(event) {
+      this.player.progress = Number(event.target.value);
+    },
+    setVolumeFromEvent(event) {
+      this.player.volume = Number(event.target.value);
     },
     hasList() {
       return hasListSource();
@@ -340,6 +355,104 @@ export default {
   margin-top: -6px;
   margin-bottom: -6px;
   width: 100%;
+}
+
+.native-slider {
+  display: block;
+  width: 100%;
+  height: 14px;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+
+.native-slider::-webkit-slider-runnable-track {
+  height: 2px;
+  border-radius: 15px;
+  background: linear-gradient(
+    to right,
+    var(--color-primary) 0%,
+    var(--color-primary) var(--slider-percent),
+    rgba(128, 128, 128, 0.18) var(--slider-percent),
+    rgba(128, 128, 128, 0.18) 100%
+  );
+}
+
+.native-slider::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -5px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0.5px 0.5px 2px 1px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  appearance: none;
+}
+
+.native-slider:hover::-webkit-slider-thumb,
+.native-slider:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+.native-slider::-moz-range-track {
+  height: 2px;
+  border-radius: 15px;
+  background: rgba(128, 128, 128, 0.18);
+}
+
+.native-slider::-moz-range-progress {
+  height: 2px;
+  border-radius: 15px;
+  background: var(--color-primary);
+}
+
+.native-slider::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0.5px 0.5px 2px 1px rgba(0, 0, 0, 0.12);
+  opacity: 0;
+}
+
+.native-slider:hover::-moz-range-thumb,
+.native-slider:active::-moz-range-thumb {
+  opacity: 1;
+}
+
+.volume-control .native-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--color-text) 0%,
+    var(--color-text) var(--slider-percent),
+    rgba(128, 128, 128, 0.18) var(--slider-percent),
+    rgba(128, 128, 128, 0.18) 100%
+  );
+}
+
+.volume-control:hover .native-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    to right,
+    var(--color-primary) 0%,
+    var(--color-primary) var(--slider-percent),
+    rgba(128, 128, 128, 0.18) var(--slider-percent),
+    rgba(128, 128, 128, 0.18) 100%
+  );
+}
+
+.volume-control .native-slider::-moz-range-track,
+.volume-control .native-slider::-moz-range-progress {
+  background: var(--color-text);
+  opacity: 0.8;
+}
+
+.volume-control:hover .native-slider::-moz-range-track,
+.volume-control:hover .native-slider::-moz-range-progress {
+  background: var(--color-primary);
 }
 
 .controls {

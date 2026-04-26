@@ -1,10 +1,13 @@
 <template>
-  <button class="button-icon"><slot></slot></button>
+  <button class="button-icon" @click="$emit('click', $event)">
+    <slot></slot>
+  </button>
 </template>
 
 <script>
 export default {
   name: 'ButtonIcon',
+  emits: ['click'],
 };
 </script>
 
