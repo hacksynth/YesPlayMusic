@@ -121,7 +121,7 @@
         "owner": "hacksynth",
         "repo": "YesPlayMusic",
         "vPrefixedTagName": true,
-        "releaseType": "draft"
+        "releaseType": "release"
       }
     ],
     "mac": {
@@ -130,8 +130,7 @@
           "target": "dmg",
           "arch": [
             "x64",
-            "arm64",
-            "universal"
+            "arm64"
           ]
         }
       ],
@@ -184,12 +183,6 @@
         },
         {
           "target": "rpm",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "snap",
           "arch": [
             "x64"
           ]
