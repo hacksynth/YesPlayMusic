@@ -3,11 +3,14 @@ import md5 from 'md5';
 
 const TOUBIEC_API_URLS = [
   process.env.VUE_APP_TOUBIEC_API_URL,
+  '/toubiec-wyapi',
+  '/toubiec-nextmusic',
   'https://wyapi.toubiec.cn/api',
   'https://nextmusic.toubiec.cn/api',
 ]
   .filter(Boolean)
-  .map(url => url.replace(/\/$/, ''));
+  .map(url => url.replace(/\/$/, ''))
+  .filter((url, index, urls) => urls.indexOf(url) === index);
 
 const MUSIC_QUALITY_TO_LEVEL = {
   128000: 'standard',

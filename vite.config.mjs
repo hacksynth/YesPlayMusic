@@ -32,7 +32,7 @@ export default defineConfig(({ mode }) => {
     ),
     'process.env.VUE_APP_REAL_IP': JSON.stringify(env.VUE_APP_REAL_IP || ''),
     'process.env.VUE_APP_TOUBIEC_API_URL': JSON.stringify(
-      env.VUE_APP_TOUBIEC_API_URL || 'https://wyapi.toubiec.cn/api'
+      env.VUE_APP_TOUBIEC_API_URL || '/toubiec-wyapi'
     ),
   };
 
