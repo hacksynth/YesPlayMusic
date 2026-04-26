@@ -127,7 +127,7 @@ export default {
         this.track?.al?.picUrl ??
         this.track?.album?.picUrl ??
         'https://p2.music.126.net/UeTuwE7pvjBpypWLudqukA==/3132508627578625.jpg';
-      return image + '?param=224y224';
+      return image.replace(/^http:/, 'https:') + '?param=224y224';
     },
     artists() {
       const { ar, artists } = this.track;
