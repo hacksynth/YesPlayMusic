@@ -8,6 +8,7 @@ import {
   globalShortcut,
   nativeTheme,
   screen,
+  session,
 } from 'electron';
 import {
   isWindows,
@@ -17,7 +18,6 @@ import {
   isCreateTray,
   isCreateMpris,
 } from '@/utils/platform';
-import { createProtocol } from 'vue-cli-plugin-electron-builder/lib';
 import { startNeteaseMusicApi } from './electron/services';
 import { initIpcMain } from './electron/ipcMain.js';
 import { createMenu } from './electron/menu';
@@ -33,10 +33,34 @@ import expressProxy from 'express-http-proxy';
 import Store from 'electron-store';
 import { createMpris, createDbus } from '@/electron/mpris';
 import { spawn } from 'child_process';
+import path from 'node:path';
 const clc = require('cli-color');
 const log = text => {
   console.log(`${clc.blueBright('[background.js]')} ${text}`);
 };
+
+const CSP_POLICY = [
+  "default-src 'self'",
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' https://*.music.126.net https://*.last.fm data:",
+  "media-src 'self' https://*.music.126.net blob:",
+  "connect-src 'self' https://music.163.com https://*.last.fm",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
+const LASTFM_WINDOW_HOSTS = new Set(['www.last.fm', 'last.fm']);
+
+const secureWebPreferences = () => ({
+  webSecurity: true,
+  nodeIntegration: false,
+  contextIsolation: true,
+  enableRemoteModule: false,
+  preload: path.join(__dirname, 'preload.js'),
+});
 
 const closeOnLinux = (e, win, store) => {
   let closeOpt = store.get('settings.closeAppOption');
@@ -153,7 +177,10 @@ class Background {
     log('creating express app');
 
     const expressApp = express();
-    expressApp.use('/', express.static(__dirname + '/'));
+    const rendererRoot = process.env.VITE_DEV_SERVER_URL
+      ? __dirname
+      : path.join(app.getAppPath(), 'dist');
+    expressApp.use('/', express.static(rendererRoot));
     expressApp.use('/api', expressProxy('http://127.0.0.1:10754'));
     expressApp.use('/player', (req, res) => {
       this.window.webContents
@@ -168,6 +195,17 @@ class Background {
         });
     });
     this.expressApp = expressApp.listen(27232, '127.0.0.1');
+  }
+
+  installCsp() {
+    session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [CSP_POLICY],
+        },
+      });
+    });
   }
 
   createWindow() {
@@ -188,12 +226,7 @@ class Background {
       ),
       title: 'YesPlayMusic',
       show: false,
-      webPreferences: {
-        webSecurity: false,
-        nodeIntegration: true,
-        enableRemoteModule: true,
-        contextIsolation: false,
-      },
+      webPreferences: secureWebPreferences(),
       backgroundColor:
         ((appearance === undefined || appearance === 'auto') &&
           nativeTheme.shouldUseDarkColors) ||
@@ -202,19 +235,21 @@ class Background {
           : '#fff',
     };
 
-    if (this.store.get('window.x') && this.store.get('window.y')) {
-      let x = this.store.get('window.x');
-      let y = this.store.get('window.y');
+    const x = this.store.get('window.x');
+    const y = this.store.get('window.y');
+    if (Number.isFinite(x) && Number.isFinite(y)) {
 
       let displays = screen.getAllDisplays();
       let isResetWindiw = false;
       if (displays.length === 1) {
         let { bounds } = displays[0];
         if (
-          x < bounds.x ||
-          x > bounds.x + bounds.width - 50 ||
-          y < bounds.y ||
-          y > bounds.y + bounds.height - 50
+          !(
+            x >= bounds.x &&
+            x < bounds.x + bounds.width &&
+            y >= bounds.y &&
+            y < bounds.y + bounds.height
+          )
         ) {
           isResetWindiw = true;
         }
@@ -223,10 +258,10 @@ class Background {
         for (let i = 0; i < displays.length; i++) {
           let { bounds } = displays[i];
           if (
-            x > bounds.x &&
+            x >= bounds.x &&
             x < bounds.x + bounds.width &&
-            y > bounds.y &&
-            y < bounds.y - bounds.height
+            y >= bounds.y &&
+            y < bounds.y + bounds.height
           ) {
             // 检测到APP窗口当前处于一个可用的屏幕里，break
             isResetWindiw = false;
@@ -238,6 +273,10 @@ class Background {
       if (!isResetWindiw) {
         options.x = x;
         options.y = y;
+      } else {
+        const { bounds } = screen.getPrimaryDisplay();
+        options.x = Math.round(bounds.x + (bounds.width - options.width) / 2);
+        options.y = Math.round(bounds.y + (bounds.height - options.height) / 2);
       }
     }
 
@@ -246,16 +285,15 @@ class Background {
     // hide menu bar on Microsoft Windows and Linux
     this.window.setMenuBarVisibility(false);
 
-    if (process.env.WEBPACK_DEV_SERVER_URL) {
+    if (process.env.VITE_DEV_SERVER_URL) {
       // Load the url of the dev server if in development mode
       this.window.loadURL(
         showLibraryDefault
-          ? `${process.env.WEBPACK_DEV_SERVER_URL}/#/library`
-          : process.env.WEBPACK_DEV_SERVER_URL
+          ? `${process.env.VITE_DEV_SERVER_URL}/#/library`
+          : process.env.VITE_DEV_SERVER_URL
       );
       if (!process.env.IS_TEST) this.window.webContents.openDevTools();
     } else {
-      createProtocol('app');
       this.window.loadURL(
         showLibraryDefault
           ? 'http://localhost:27232/#/library'
@@ -267,7 +305,10 @@ class Background {
   checkForUpdates() {
     if (isDevelopment) return;
     log('checkForUpdates');
-    autoUpdater.checkForUpdatesAndNotify();
+    autoUpdater.autoDownload = false;
+    autoUpdater
+      .checkForUpdatesAndNotify()
+      .catch(error => log(`autoUpdater failed: ${error.message}`));
 
     const showNewVersionMessage = info => {
       dialog
@@ -290,6 +331,10 @@ class Background {
 
     autoUpdater.on('update-available', info => {
       showNewVersionMessage(info);
+    });
+
+    autoUpdater.on('error', error => {
+      log(`autoUpdater error: ${error.message}`);
     });
   }
 
@@ -341,28 +386,35 @@ class Background {
       this.window.webContents.send('isMaximized', false);
     });
 
-    this.window.webContents.on('new-window', function (e, url) {
-      e.preventDefault();
-      log('open url');
-      const excludeHosts = ['www.last.fm'];
-      const exclude = excludeHosts.find(host => url.includes(host));
-      if (exclude) {
-        const newWindow = new BrowserWindow({
-          width: 800,
-          height: 600,
-          titleBarStyle: 'default',
-          title: 'YesPlayMusic',
-          webPreferences: {
-            webSecurity: false,
-            nodeIntegration: true,
-            enableRemoteModule: true,
-            contextIsolation: false,
-          },
-        });
-        newWindow.loadURL(url);
-        return;
+    this.window.webContents.setWindowOpenHandler(({ url }) => {
+      let parsedUrl;
+      try {
+        parsedUrl = new URL(url);
+      } catch {
+        return { action: 'deny' };
       }
-      shell.openExternal(url);
+
+      if (
+        parsedUrl.protocol === 'https:' &&
+        LASTFM_WINDOW_HOSTS.has(parsedUrl.hostname)
+      ) {
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            width: 800,
+            height: 600,
+            titleBarStyle: 'default',
+            title: 'YesPlayMusic',
+            webPreferences: secureWebPreferences(),
+          },
+        };
+      }
+
+      if (parsedUrl.protocol === 'https:') {
+        shell.openExternal(parsedUrl.toString());
+      }
+
+      return { action: 'deny' };
     });
   }
 
@@ -378,6 +430,8 @@ class Background {
         this.initDevtools();
       }
 
+      this.installCsp();
+
       // create window
       this.createWindow();
       this.window.once('ready-to-show', () => {
@@ -388,11 +442,7 @@ class Background {
       // create tray
       if (isCreateTray) {
         this.trayEventEmitter = new EventEmitter();
-        this.ypmTrayImpl = createTray(
-          this.window,
-          this.trayEventEmitter,
-          this.store
-        );
+        this.ypmTrayImpl = createTray(this.window, this.trayEventEmitter);
       }
 
       // init ipcMain

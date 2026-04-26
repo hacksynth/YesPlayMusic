@@ -3,7 +3,7 @@
     <div class="playlist-info">
       <Cover
         :id="album.id"
-        :image-url="album.picUrl | resizeImage(1024)"
+        :image-url="resizeImage(album.picUrl, 1024)"
         :show-play-button="true"
         :always-show-shadow="true"
         :click-cover-to-play="true"
@@ -11,16 +11,19 @@
         type="album"
         :cover-hover="false"
         :play-button-size="18"
-        @click.right.native="openMenu"
+        @contextmenu="openMenu"
       />
       <div class="info">
-        <div class="title" @click.right="openMenu"> {{ title }}</div>
-        <div v-if="subtitle !== ''" class="subtitle" @click.right="openMenu">{{
-          subtitle
-        }}</div>
+        <div class="title" @contextmenu.prevent="openMenu"> {{ title }}</div>
+        <div
+          v-if="subtitle !== ''"
+          class="subtitle"
+          @contextmenu.prevent="openMenu"
+          >{{ subtitle }}</div
+        >
         <div class="artist">
           <span v-if="album.artist.id !== 104700">
-            <span>{{ album.type | formatAlbumType(album) }} by </span
+            <span>{{ formatAlbumType(album.type, album) }} by </span
             ><router-link :to="`/artist/${album.artist.id}`">{{
               album.artist.name
             }}</router-link></span
@@ -33,12 +36,12 @@
             class="explicit-symbol"
             ><ExplicitSymbol
           /></span>
-          <span :title="album.publishTime | formatDate">{{
+          <span :title="formatDate(album.publishTime)">{{
             new Date(album.publishTime).getFullYear()
           }}</span>
           <span> · {{ album.size }} {{ $t('common.songs') }}</span
           >,
-          {{ albumTime | formatTime('Human') }}
+          {{ formatTime(albumTime, 'Human') }}
         </div>
         <div class="description" @click="toggleFullDescription">
           {{ album.description }}
@@ -46,7 +49,7 @@
         <div class="buttons" style="margin-top: 32px">
           <ButtonTwoTone
             icon-class="play"
-            @click.native="playAlbumByID(album.id)"
+            @click="playAlbumByID(album.id)"
           >
             {{ $t('common.play') }}
           </ButtonTwoTone>
@@ -59,7 +62,7 @@
             :background-color="
               dynamicDetail.isSub ? 'var(--color-secondary-bg)' : ''
             "
-            @click.native="likeAlbum"
+            @click="likeAlbum"
           >
           </ButtonTwoTone>
           <ButtonTwoTone
@@ -67,7 +70,7 @@
             :icon-button="true"
             :horizontal-padding="0"
             color="grey"
-            @click.native="openMenu"
+            @click="openMenu"
           >
           </ButtonTwoTone>
         </div>
@@ -96,7 +99,7 @@
       <div class="album-time"></div>
       <div class="release-date">
         {{ $t('album.released') }}
-        {{ album.publishTime | formatDate('MMMM D, YYYY') }}
+        {{ formatDate(album.publishTime, 'MMMM D, YYYY') }}
       </div>
       <div v-if="album.company" class="copyright"> © {{ album.company }} </div>
     </div>
@@ -153,7 +156,9 @@ import locale from '@/locale';
 import { splitSoundtrackAlbumTitle, splitAlbumTitle } from '@/utils/common';
 import NProgress from 'nprogress';
 import { isAccountLoggedIn } from '@/utils/auth';
-import { groupBy, toPairs, sortBy } from 'lodash';
+import groupBy from 'lodash-es/groupBy';
+import sortBy from 'lodash-es/sortBy';
+import toPairs from 'lodash-es/toPairs';
 
 import ExplicitSymbol from '@/components/ExplicitSymbol.vue';
 import ButtonTwoTone from '@/components/ButtonTwoTone.vue';

@@ -1,23 +1,31 @@
-import Cookies from 'js-cookie';
 import { logout } from '@/api/auth';
 import store from '@/store';
 
+const isElectron = () =>
+  process.env.IS_ELECTRON === true || process.env.IS_ELECTRON === 'true';
+
 export function setCookies(string) {
-  const cookies = string.split(';;');
-  cookies.map(cookie => {
-    document.cookie = cookie;
-    const cookieKeyValue = cookie.split(';')[0].split('=');
-    localStorage.setItem(`cookie-${cookieKeyValue[0]}`, cookieKeyValue[1]);
-  });
+  localStorage.removeItem('cookie-MUSIC_U');
+  localStorage.removeItem('cookie-__csrf');
+  localStorage.setItem('isLoggedIn', 'true');
+
+  if (isElectron()) {
+    return window.electron.ipcRenderer.invoke('set-login-cookies', string);
+  }
+
+  return Promise.resolve({ ok: true });
 }
 
 export function getCookie(key) {
-  return Cookies.get(key) ?? localStorage.getItem(`cookie-${key}`);
+  if (key !== 'MUSIC_U') return undefined;
+  return localStorage.getItem('isLoggedIn') === 'true' ? 'logged-in' : undefined;
 }
 
 export function removeCookie(key) {
-  Cookies.remove(key);
   localStorage.removeItem(`cookie-${key}`);
+  if (key === 'MUSIC_U') {
+    localStorage.removeItem('isLoggedIn');
+  }
 }
 
 // MUSIC_U 只有在账户登录的情况下才有
@@ -47,6 +55,12 @@ export function doLogout() {
   logout();
   removeCookie('MUSIC_U');
   removeCookie('__csrf');
+  localStorage.removeItem('lastfm');
+  localStorage.removeItem('lastfm-status');
+  if (isElectron()) {
+    window.electron.ipcRenderer.invoke('clear-login-cookies');
+    window.electron.ipcRenderer.invoke('lastfm-clear-session');
+  }
   // 更新状态仓库中的用户信息
   store.commit('updateData', { key: 'user', value: {} });
   // 更新状态仓库中的登录状态

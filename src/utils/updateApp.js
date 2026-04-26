@@ -1,8 +1,8 @@
 import initLocalStorage from '@/store/initLocalStorage.js';
 import pkg from '../../package.json';
 
-const updateSetting = () => {
-  const parsedSettings = JSON.parse(localStorage.getItem('settings'));
+export const updateSetting = () => {
+  const parsedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
   const settings = {
     ...initLocalStorage.settings,
     ...parsedSettings,
@@ -13,13 +13,11 @@ const updateSetting = () => {
   ) {
     // 当新增 shortcuts 时
     const oldShortcutsId = settings.shortcuts.map(s => s.id);
-    const newShortcutsId = initLocalStorage.settings.shortcuts.filter(
+    const newShortcuts = initLocalStorage.settings.shortcuts.filter(
       s => oldShortcutsId.includes(s.id) === false
     );
-    newShortcutsId.map(id => {
-      settings.shortcuts.push(
-        initLocalStorage.settings.shortcuts.find(s => s.id === id)
-      );
+    newShortcuts.forEach(shortcut => {
+      settings.shortcuts.push(shortcut);
     });
   }
 
@@ -51,6 +49,9 @@ const updatePlayer = () => {
 const removeOldStuff = () => {
   // remove old indexedDB databases created by localforage
   indexedDB.deleteDatabase('tracks');
+  localStorage.removeItem('cookie-MUSIC_U');
+  localStorage.removeItem('cookie-__csrf');
+  localStorage.removeItem('lastfm');
 };
 
 export default function () {

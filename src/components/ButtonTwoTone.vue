@@ -74,7 +74,7 @@ button {
   margin-right: 12px;
   transition: 0.2s;
   user-select: none;
-  .svg-icon {
+  :deep(.svg-icon) {
     width: 16px;
     height: 16px;
   }

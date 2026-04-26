@@ -169,12 +169,6 @@ export default {
       light: 'Light',
       dark: 'Dark',
     },
-    trayIcon: {
-      text: 'Tray Icon Color',
-      auto: 'Auto',
-      light: 'Light',
-      dark: 'Dark',
-    },
     automaticallyCacheSongs: 'Automatically cache songs',
     clearSongsCache: 'Clear Songs Cache',
     cacheCount: 'Cached {song} songs ({size})',

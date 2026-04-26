@@ -6,6 +6,8 @@
     :title="showUnavailableSongInGreyStyle ? track.reason : ''"
     @mouseover="hover = true"
     @mouseleave="hover = false"
+    @dblclick="playTrackFromList"
+    @contextmenu.prevent="openMenu"
   >
     <img
       v-if="!isAlbum"
@@ -79,7 +81,7 @@
       </button>
     </div>
     <div v-if="showTrackTime" class="time">
-      {{ track.dt | formatTime }}
+      {{ formatTime(track.dt) }}
     </div>
 
     <div v-if="track.playCount" class="count"> {{ track.playCount }}</div>
@@ -90,11 +92,12 @@
 import ArtistsInLine from '@/components/ArtistsInLine.vue';
 import ExplicitSymbol from '@/components/ExplicitSymbol.vue';
 import { mapState } from 'vuex';
-import { isNil } from 'lodash';
+import isNil from 'lodash-es/isNil';
 
 export default {
   name: 'TrackListItem',
   components: { ArtistsInLine, ExplicitSymbol },
+  emits: ['open-menu', 'play-track'],
 
   props: {
     trackProp: Object,
@@ -217,6 +220,12 @@ export default {
     },
     playTrack() {
       this.$parent.playThisList(this.track.id);
+    },
+    playTrackFromList() {
+      this.$emit('play-track', this.trackProp.id || this.trackProp.songId);
+    },
+    openMenu(e) {
+      this.$emit('open-menu', e, this.trackProp, this.trackNo - 1);
     },
     likeThisSong() {
       this.$parent.likeATrack(this.track.id);

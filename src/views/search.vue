@@ -88,6 +88,7 @@
 import { mapActions } from 'vuex';
 import { getTrackDetail } from '@/api/track';
 import { search } from '@/api/others';
+import { normalizeError } from '@/utils/request';
 import NProgress from 'nprogress';
 
 import TrackList from '@/components/TrackList.vue';
@@ -160,7 +161,9 @@ export default {
           return { result: result.result, type };
         })
         .catch(err => {
-          showToast(err.response.data.msg || err.response.data.message);
+          const { message } = normalizeError(err);
+          showToast(message);
+          return { type, result: undefined, hasError: true };
         });
     },
     getData() {
@@ -172,8 +175,8 @@ export default {
       const requestAll = requests => {
         const keywords = this.keywords;
         Promise.all(requests).then(results => {
-          if (keywords != this.keywords) return;
-          results.map(result => {
+          if (keywords !== this.keywords) return;
+          results.filter(result => !result.hasError).map(result => {
             const searchType = result.type;
             if (result.result === undefined) return;
             result = result.result;

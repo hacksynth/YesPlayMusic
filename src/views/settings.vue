@@ -56,18 +56,6 @@
           </select>
         </div>
       </div>
-      <div v-if="isElectron" class="item">
-        <div class="left">
-          <div class="title"> {{ $t('settings.trayIcon.text') }} </div>
-        </div>
-        <div class="right">
-          <select v-model="trayIconTheme">
-            <option value="auto">{{ $t('settings.trayIcon.auto') }}</option>
-            <option value="light">{{ $t('settings.trayIcon.light') }}</option>
-            <option value="dark">{{ $t('settings.trayIcon.dark') }}</option>
-          </select>
-        </div>
-      </div>
       <div class="item">
         <div class="left">
           <div class="title">
@@ -128,7 +116,7 @@
               v-for="device in allOutputDevices"
               :key="device.deviceId"
               :value="device.deviceId"
-              :selected="device.deviceId == outputDevice"
+              :selected="device.deviceId === outputDevice"
             >
               {{ $t(device.label) }}
             </option>
@@ -794,10 +782,8 @@ import { changeAppearance, bytesToSize } from '@/utils/common';
 import { countDBSize, clearDB } from '@/utils/db';
 import pkg from '../../package.json';
 
-const electron =
-  process.env.IS_ELECTRON === true ? window.require('electron') : null;
 const ipcRenderer =
-  process.env.IS_ELECTRON === true ? electron.ipcRenderer : null;
+  process.env.IS_ELECTRON === true ? window.electron.ipcRenderer : null;
 
 const validShortcutCodes = ['=', '-', '~', '[', ']', ';', "'", ',', '.', '/'];
 
@@ -821,6 +807,7 @@ export default {
         recording: false,
       },
       recordedShortcut: [],
+      lastfmChecker: null,
     };
   },
   computed: {
@@ -832,7 +819,7 @@ export default {
       return /macintosh|mac os x/i.test(navigator.userAgent);
     },
     isLinux() {
-      return process.platform === 'linux';
+      return window.yesPlayMusicNative?.platform === 'linux';
     },
     version() {
       return pkg.version;
@@ -917,21 +904,6 @@ export default {
           value,
         });
         changeAppearance(value);
-      },
-    },
-    trayIconTheme: {
-      get() {
-        if (this.settings.trayIconTheme === undefined) return 'auto';
-        return this.settings.trayIconTheme;
-      },
-      set(value) {
-        this.$store.commit('updateSettings', {
-          key: 'trayIconTheme',
-          value,
-        });
-        if (this.isElectron) {
-          ipcRenderer.send('updateTrayIcon', value);
-        }
       },
     },
     musicQuality: {
@@ -1306,7 +1278,7 @@ export default {
       },
     },
     isLastfmConnected() {
-      return this.lastfm.key !== undefined;
+      return this.lastfm.connected === true;
     },
   },
   created() {
@@ -1317,12 +1289,15 @@ export default {
     this.countDBSize('tracks');
     if (process.env.IS_ELECTRON) this.getAllOutputDevices();
   },
+  beforeDestroy() {
+    this.clearLastfmChecker();
+  },
   methods: {
     ...mapActions(['showToast']),
     getAllOutputDevices() {
       navigator.mediaDevices.enumerateDevices().then(devices => {
         this.allOutputDevices = devices.filter(device => {
-          return device.kind == 'audiooutput';
+          return device.kind === 'audiooutput';
         });
         if (
           this.allOutputDevices.length > 0 &&
@@ -1362,18 +1337,31 @@ export default {
       });
     },
     lastfmConnect() {
+      this.clearLastfmChecker();
+      this.lastfmChecker = setInterval(this.syncLastfmStatus, 1000);
       lastfmAuth();
-      let lastfmChecker = setInterval(() => {
-        const session = localStorage.getItem('lastfm');
-        if (session) {
-          this.$store.commit('updateLastfm', JSON.parse(session));
-          clearInterval(lastfmChecker);
-        }
-      }, 1000);
     },
     lastfmDisconnect() {
+      this.clearLastfmChecker();
       localStorage.removeItem('lastfm');
+      localStorage.removeItem('lastfm-status');
+      if (process.env.IS_ELECTRON === true) {
+        ipcRenderer.invoke('lastfm-clear-session');
+      }
       this.$store.commit('updateLastfm', {});
+    },
+    syncLastfmStatus() {
+      const lastfmStatus = JSON.parse(
+        localStorage.getItem('lastfm-status') || '{}'
+      );
+      if (lastfmStatus.connected === true) {
+        this.$store.commit('updateLastfm', lastfmStatus);
+        this.clearLastfmChecker();
+      }
+    },
+    clearLastfmChecker() {
+      clearInterval(this.lastfmChecker);
+      this.lastfmChecker = null;
     },
     sendProxyConfig() {
       if (this.proxyProtocol === 'noProxy') return;
@@ -1385,7 +1373,11 @@ export default {
       ) {
         ipcRenderer.send('removeProxy');
       } else {
-        ipcRenderer.send('setProxy', config);
+        ipcRenderer.send('setProxy', {
+          type: config.protocol === 'SOCKS' ? 'socks5' : 'http',
+          host: config.server,
+          port: Number(config.port),
+        });
       }
       this.showToast('已更新代理设置');
     },
@@ -1404,7 +1396,7 @@ export default {
       } else if (this.settings.lang === 'zh-TW') {
         shortcut = shortcut.replace('Space', '空白鍵');
       }
-      if (process.platform === 'darwin') {
+      if (window.yesPlayMusicNative?.platform === 'darwin') {
         return shortcut
           .replace('CommandOrControl', '⌘')
           .replace('Command', '⌘')

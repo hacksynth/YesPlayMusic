@@ -4,12 +4,13 @@ import { trackScrobble, trackUpdateNowPlaying } from '@/api/lastfm';
 import { fmTrash, personalFM } from '@/api/others';
 import { getPlaylistDetail, intelligencePlaylist } from '@/api/playlist';
 import { getLyric, getMP3, getTrackDetail, scrobble } from '@/api/track';
+import { getToubiecLevelsByQuality, getToubiecSongUrl } from '@/api/toubiec';
 import store from '@/store';
 import { isAccountLoggedIn } from '@/utils/auth';
 import { cacheTrackSource, getTrackSource } from '@/utils/db';
 import { isCreateMpris, isCreateTray } from '@/utils/platform';
 import { Howl, Howler } from 'howler';
-import shuffle from 'lodash/shuffle';
+import shuffle from 'lodash-es/shuffle';
 import { decode as base642Buffer } from '@/utils/base64';
 
 const PLAY_PAUSE_FADE_DURATION = 200;
@@ -25,10 +26,8 @@ const UNPLAYABLE_CONDITION = {
   PLAY_PREV_TRACK: 'playPrevTrack',
 };
 
-const electron =
-  process.env.IS_ELECTRON === true ? window.require('electron') : null;
 const ipcRenderer =
-  process.env.IS_ELECTRON === true ? electron.ipcRenderer : null;
+  process.env.IS_ELECTRON === true ? window.electron.ipcRenderer : null;
 const delay = ms =>
   new Promise(resolve => {
     setTimeout(() => {
@@ -40,6 +39,10 @@ const excludeSaveKeys = [
   '_personalFMLoading',
   '_personalFMNextLoading',
 ];
+
+function isVipOnlyTrack(track) {
+  return track?.fee === 1 || track?.privilege?.fee === 1;
+}
 
 function setTitle(track) {
   document.title = track
@@ -315,7 +318,7 @@ export default class {
       time,
     });
     if (
-      store.state.lastfm.key !== undefined &&
+      store.state.lastfm.connected === true &&
       (time >= trackDuration / 2 || time >= 240)
     ) {
       const timestamp = ~~(new Date().getTime() / 1000) - time;
@@ -379,7 +382,7 @@ export default class {
     // Clean up the previous object URLs since we've created a new one.
     // Revoke object URLs can release the memory taken by a Blob,
     // which occupied a large proportion of memory.
-    for (const url in this.createdBlobRecords) {
+    for (const url of this.createdBlobRecords) {
       URL.revokeObjectURL(url);
     }
 
@@ -389,18 +392,51 @@ export default class {
 
     return source;
   }
-  _getAudioSourceFromCache(id) {
+  _getAudioSourceFromCache(id, fromList = null) {
     return getTrackSource(id).then(t => {
       if (!t) return null;
+      if (fromList && !fromList.includes(t.from)) return null;
       return this._getAudioSourceBlobURL(t.source);
     });
+  }
+  async _getAudioSourceFromToubiec(track) {
+    const levels = getToubiecLevelsByQuality(
+      store.state.settings?.musicQuality ?? 320000
+    );
+
+    for (const level of levels) {
+      try {
+        const result = await getToubiecSongUrl(track.id, level);
+        const data = result?.data;
+        if (result?.code !== 200 || !data?.url) continue;
+
+        const source = data.url.replace(/^http:/, 'https:');
+        if (store.state.settings.automaticallyCacheSongs) {
+          cacheTrackSource(track, source, data.br || 128000, 'toubiec');
+        }
+        return source;
+      } catch (error) {
+        console.debug(
+          `[debug][Player.js] _getAudioSourceFromToubiec ${level} failed`,
+          error
+        );
+      }
+    }
+
+    return null;
   }
   _getAudioSourceFromNetease(track) {
     if (isAccountLoggedIn()) {
       return getMP3(track.id).then(result => {
         if (!result.data[0]) return null;
         if (!result.data[0].url) return null;
-        if (result.data[0].freeTrialInfo !== null) return null; // 跳过只能试听的歌曲
+        if (
+          result.data[0].freeTrialInfo !== null &&
+          process.env.IS_ELECTRON === true &&
+          store.state.settings.enableUnblockNeteaseMusic !== false
+        ) {
+          return null;
+        }
         const source = result.data[0].url.replace(/^http:/, 'https:');
         if (store.state.settings.automaticallyCacheSongs) {
           cacheTrackSource(track, source, result.data[0].br);
@@ -481,14 +517,27 @@ export default class {
     const buffer = base642Buffer(retrieveSongInfo.url);
     return this._getAudioSourceBlobURL(buffer);
   }
-  _getAudioSource(track) {
-    return this._getAudioSourceFromCache(String(track.id))
-      .then(source => {
-        return source ?? this._getAudioSourceFromNetease(track);
-      })
-      .then(source => {
-        return source ?? this._getAudioSourceFromUnblockMusic(track);
-      });
+  async _getAudioSource(track) {
+    if (isVipOnlyTrack(track)) {
+      const cachedToubiecSource = await this._getAudioSourceFromCache(
+        String(track.id),
+        ['toubiec']
+      );
+      if (cachedToubiecSource) return cachedToubiecSource;
+
+      const toubiecSource = await this._getAudioSourceFromToubiec(track);
+      if (toubiecSource) return toubiecSource;
+    } else {
+      const cachedSource = await this._getAudioSourceFromCache(
+        String(track.id)
+      );
+      if (cachedSource) return cachedSource;
+    }
+
+    const neteaseSource = await this._getAudioSourceFromNetease(track);
+    if (neteaseSource) return neteaseSource;
+
+    return this._getAudioSourceFromUnblockMusic(track);
   }
   _replaceCurrentTrack(
     id,
@@ -555,7 +604,7 @@ export default class {
       ? this._personalFMNextTrack?.id ?? 0
       : this._getNextTrack()[0];
     if (!nextTrackID) return;
-    if (this._personalFMTrack.id == nextTrackID) return;
+    if (this._personalFMTrack.id === nextTrackID) return;
     getTrackDetail(nextTrackID).then(data => {
       let track = data.songs[0];
       this._getAudioSource(track);
@@ -833,7 +882,7 @@ export default class {
         setTitle(this._currentTrack);
       }
       this._playDiscordPresence(this._currentTrack, this.seek());
-      if (store.state.lastfm.key !== undefined) {
+      if (store.state.lastfm.connected === true) {
         trackUpdateNowPlaying({
           artist: this.currentTrack.ar[0].name,
           track: this.currentTrack.name,
@@ -852,10 +901,12 @@ export default class {
     }
   }
   seek(time = null, sendMpris = true) {
-    if (isCreateMpris && sendMpris && time) {
+    // eslint-disable-next-line eqeqeq -- seek(null/undefined) means read current time without seeking.
+    if (isCreateMpris && sendMpris && time != null) {
       ipcRenderer?.send('seeked', time);
     }
-    if (time !== null) {
+    // eslint-disable-next-line eqeqeq -- seek(null/undefined) means read current time without seeking.
+    if (time != null) {
       this._howler?.seek(time);
       if (this._playing)
         this._playDiscordPresence(this._currentTrack, this.seek(null, false));

@@ -1,15 +1,11 @@
 import router from '@/router';
-import { doLogout, getCookie } from '@/utils/auth';
+import { doLogout } from '@/utils/auth';
 import axios from 'axios';
 
 let baseURL = '';
 // Web 和 Electron 跑在不同端口避免同时启动时冲突
 if (process.env.IS_ELECTRON) {
-  if (process.env.NODE_ENV === 'production') {
-    baseURL = process.env.VUE_APP_ELECTRON_API_URL;
-  } else {
-    baseURL = process.env.VUE_APP_ELECTRON_API_URL_DEV;
-  }
+  baseURL = process.env.VUE_APP_ELECTRON_API_URL || '/api';
 } else {
   baseURL = process.env.VUE_APP_NETEASE_API_URL;
 }
@@ -20,17 +16,34 @@ const service = axios.create({
   timeout: 15000,
 });
 
+export function normalizeError(error) {
+  if (axios.isAxiosError(error)) {
+    const data = error.response?.data;
+    return {
+      status: error.response?.status ?? data?.code ?? null,
+      message: data?.msg ?? data?.message ?? error.message,
+      data,
+    };
+  }
+
+  if (error && typeof error === 'object') {
+    return {
+      status: error.status ?? error.code ?? null,
+      message: error.message ?? String(error),
+      data: error.data ?? error,
+    };
+  }
+
+  return {
+    status: null,
+    message: String(error),
+    data: error,
+  };
+}
+
 service.interceptors.request.use(function (config) {
   if (!config.params) config.params = {};
-  if (baseURL.length) {
-    if (
-      baseURL[0] !== '/' &&
-      !process.env.IS_ELECTRON &&
-      getCookie('MUSIC_U') !== null
-    ) {
-      config.params.cookie = `MUSIC_U=${getCookie('MUSIC_U')};`;
-    }
-  } else {
+  if (!baseURL.length) {
     console.error("You must set up the baseURL in the service's config");
   }
 
@@ -39,19 +52,25 @@ service.interceptors.request.use(function (config) {
   }
 
   // Force real_ip
-  const enableRealIP = JSON.parse(
-    localStorage.getItem('settings')
-  ).enableRealIP;
-  const realIP = JSON.parse(localStorage.getItem('settings')).realIP;
+  const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+  const enableRealIP = settings.enableRealIP;
+  const realIP = settings.realIP;
   if (process.env.VUE_APP_REAL_IP) {
     config.params.realIP = process.env.VUE_APP_REAL_IP;
   } else if (enableRealIP) {
     config.params.realIP = realIP;
   }
 
-  const proxy = JSON.parse(localStorage.getItem('settings')).proxyConfig;
-  if (['HTTP', 'HTTPS'].includes(proxy.protocol)) {
-    config.params.proxy = `${proxy.protocol}://${proxy.server}:${proxy.port}`;
+  const proxy = settings.proxyConfig || {};
+  const proxyType =
+    proxy.type ||
+    {
+      HTTP: 'http',
+      HTTPS: 'http',
+    }[proxy.protocol];
+  const proxyHost = proxy.host || proxy.server;
+  if (['http', 'socks5'].includes(proxyType)) {
+    config.params.proxy = `${proxyType}://${proxyHost}:${proxy.port}`;
   }
 
   return config;
@@ -63,6 +82,7 @@ service.interceptors.response.use(
     return res;
   },
   async error => {
+    const normalizedError = normalizeError(error);
     /** @type {import('axios').AxiosResponse | null} */
     let response;
     let data;
@@ -70,17 +90,16 @@ service.interceptors.response.use(
       response = error;
       data = error;
       console.error("You must set up the baseURL in the service's config");
-    } else if (error.response) {
+    } else if (axios.isAxiosError(error) && error.response) {
       response = error.response;
       data = response.data;
     }
 
-    if (
-      response &&
-      typeof data === 'object' &&
-      data.code === 301 &&
-      data.msg === '需要登录'
-    ) {
+    const isUnauthorized =
+      response?.status === 401 ||
+      (response && typeof data === 'object' && data.code === 301);
+
+    if (isUnauthorized) {
       console.warn('Token has expired. Logout now!');
 
       // 登出帳戶
@@ -92,7 +111,10 @@ service.interceptors.response.use(
       } else {
         router.push({ name: 'login' });
       }
+      return Promise.reject(normalizedError);
     }
+
+    return Promise.reject(normalizedError);
   }
 );
 

@@ -8,11 +8,10 @@ export function lyricParser(lrc) {
   };
 }
 
-// regexr.com/6e52n
-const extractLrcRegex =
-  /^(?<lyricTimestamps>(?:\[.+?\])+)(?!\[)(?<content>.+)$/gm;
+const extractLineRegex =
+  /^(?<lyricTimestamps>(?:\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\])+)(?<content>.*)$/;
 const extractTimestampRegex =
-  /\[(?<min>\d+):(?<sec>\d+)(?:\.|:)*(?<ms>\d+)*\]/g;
+  /\[(?<min>\d{1,3}):(?<sec>\d{1,2})(?:[.:](?<ms>\d{1,3}))?\]/g;
 
 /**
  * @typedef {{time: number, rawTime: string, content: string}} ParsedLyric
@@ -59,14 +58,21 @@ function parseLyric(lrc) {
     return low;
   };
 
-  for (const line of lrc.trim().matchAll(extractLrcRegex)) {
-    const { lyricTimestamps, content } = line.groups;
+  for (const rawLine of lrc.split('\n')) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const lineMatch = line.match(extractLineRegex);
+    if (!lineMatch) continue;
+
+    const { lyricTimestamps, content } = lineMatch.groups;
 
     for (const timestamp of lyricTimestamps.matchAll(extractTimestampRegex)) {
       const { min, sec, ms } = timestamp.groups;
-      const validMs = ms?.slice(0, 2) ?? '00';
-      const rawTime = `[${min}:${sec}.${validMs}]`;
-      const time = Number(min) * 60 + Number(sec) + Number(validMs) * 0.01;
+      const rawTime = timestamp[0];
+      const normalizedMs = (ms ?? '0').padEnd(3, '0').slice(0, 3);
+      const time =
+        Number(min) * 60 + Number(sec) + Number(normalizedMs) * 0.001;
 
       /** @type {ParsedLyric} */
       const parsedLyric = { rawTime, time, content: trimContent(content) };

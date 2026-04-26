@@ -1,15 +1,329 @@
-import { app, dialog, globalShortcut, ipcMain } from 'electron';
+import { app, dialog, globalShortcut, session } from 'electron';
 import UNM from '@unblockneteasemusic/rust-napi';
 import { registerGlobalShortcut } from '@/electron/globalShortcut';
-import cloneDeep from 'lodash/cloneDeep';
+import cloneDeep from 'lodash-es/cloneDeep';
 import shortcuts from '@/utils/shortcuts';
 import { createMenu } from './menu';
 import { isCreateTray, isMac } from '@/utils/platform';
+import axios from 'axios';
+import crypto from 'node:crypto';
+import {
+  assertBoolean,
+  assertFiniteNumber,
+  assertNoArgs,
+  assertPlainObject,
+  assertString,
+  createTrustedIpc,
+  validatePayloadTuple,
+} from './ipcSecurity';
 
 const clc = require('cli-color');
 const log = text => {
   console.log(`${clc.blueBright('[ipcMain.js]')} ${text}`);
 };
+
+const LASTFM_API_URL = 'https://ws.audioscrobbler.com/2.0/';
+const TOUBIEC_API_URL = (
+  process.env.VUE_APP_TOUBIEC_API_URL || 'https://nextmusic.toubiec.cn/api'
+).replace(/\/$/, '');
+
+const ALLOWED_LASTFM_METHODS = new Set([
+  'auth.getSession',
+  'track.scrobble',
+  'track.updateNowPlaying',
+]);
+
+const ALLOWED_TOUBIEC_LEVELS = new Set([
+  'standard',
+  'higher',
+  'exhigh',
+  'lossless',
+  'hires',
+]);
+
+const VALID_SHORTCUT_TYPES = new Set(['shortcut', 'globalShortcut']);
+const VALID_SHORTCUT_IDS = new Set(shortcuts.map(shortcut => shortcut.id));
+const VALID_SHORTCUT_MODIFIERS = new Set([
+  'Alt',
+  'AltGr',
+  'Cmd',
+  'CmdOrCtrl',
+  'Command',
+  'CommandOrControl',
+  'Control',
+  'Ctrl',
+  'Meta',
+  'Option',
+  'Shift',
+  'Super',
+]);
+const VALID_SHORTCUT_KEYS = new Set([
+  'Backspace',
+  'Delete',
+  'Down',
+  'End',
+  'Enter',
+  'Esc',
+  'Escape',
+  'Home',
+  'Insert',
+  'Left',
+  'PageDown',
+  'PageUp',
+  'Right',
+  'Space',
+  'Tab',
+  'Up',
+  '=',
+  '-',
+  '~',
+  '[',
+  ']',
+  ';',
+  "'",
+  ',',
+  '.',
+  '/',
+]);
+
+for (let code = 65; code <= 90; code += 1) {
+  VALID_SHORTCUT_KEYS.add(String.fromCharCode(code));
+}
+for (let code = 0; code <= 9; code += 1) {
+  VALID_SHORTCUT_KEYS.add(String(code));
+}
+for (let code = 1; code <= 24; code += 1) {
+  VALID_SHORTCUT_KEYS.add(`F${code}`);
+}
+
+function validateHost(host) {
+  assertString(host, 'proxy host', 253);
+  const domainPattern =
+    /^(?=.{1,253}$)(?!-)([a-zA-Z0-9-]{1,63}\.)*[a-zA-Z0-9-]{1,63}$/;
+  const ipv4Pattern =
+    /^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+  const ipv6Pattern = /^\[[0-9a-fA-F:]+\]$|^[0-9a-fA-F:]+$/;
+  if (
+    host !== 'localhost' &&
+    !domainPattern.test(host) &&
+    !ipv4Pattern.test(host) &&
+    !ipv6Pattern.test(host)
+  ) {
+    throw new Error('proxy host must be a valid domain or IP address');
+  }
+  return host;
+}
+
+function validatePort(port) {
+  const parsedPort = Number(port);
+  if (!Number.isInteger(parsedPort) || parsedPort < 1 || parsedPort > 65535) {
+    throw new Error('proxy port must be an integer from 1 to 65535');
+  }
+  return parsedPort;
+}
+
+function validateSetProxyArgs(args) {
+  return validatePayloadTuple(args, [
+    value => {
+      const config = assertPlainObject(value, 'proxy config');
+      if (!['http', 'socks5', 'direct', 'system'].includes(config.type)) {
+        throw new Error('proxy type must be http, socks5, direct, or system');
+      }
+      if (['direct', 'system'].includes(config.type)) {
+        return { type: config.type };
+      }
+      return {
+        type: config.type,
+        host: validateHost(config.host),
+        port: validatePort(config.port),
+      };
+    },
+  ]);
+}
+
+function validateAccelerator(shortcut) {
+  assertString(shortcut, 'shortcut', 80);
+  if (/[\r\n;&|`$<>]/.test(shortcut)) {
+    throw new Error('shortcut contains forbidden characters');
+  }
+  const parts = shortcut.split('+').map(part => part.trim());
+  if (parts.length === 0 || parts.some(part => part.length === 0)) {
+    throw new Error('shortcut must be a valid Electron accelerator');
+  }
+  const key = parts[parts.length - 1];
+  const modifiers = parts.slice(0, -1);
+  if (!VALID_SHORTCUT_KEYS.has(key)) {
+    throw new Error('shortcut key is not allowed');
+  }
+  if (
+    modifiers.some(modifier => !VALID_SHORTCUT_MODIFIERS.has(modifier)) ||
+    new Set(modifiers).size !== modifiers.length
+  ) {
+    throw new Error('shortcut modifiers are not allowed');
+  }
+  return shortcut;
+}
+
+function validateShortcutArgs(args) {
+  return validatePayloadTuple(args, [
+    value => {
+      const payload = assertPlainObject(value, 'shortcut payload');
+      if (!VALID_SHORTCUT_IDS.has(payload.id)) {
+        throw new Error('shortcut id is not allowed');
+      }
+      if (!VALID_SHORTCUT_TYPES.has(payload.type)) {
+        throw new Error('shortcut type is not allowed');
+      }
+      return {
+        id: payload.id,
+        type: payload.type,
+        shortcut: validateAccelerator(payload.shortcut),
+      };
+    },
+  ]);
+}
+
+function validateUnblockMusicArgs(executor, args) {
+  if (args.length !== 3) {
+    throw new Error('unblock-music expects source, track, and context');
+  }
+  const [sourceListString, ncmTrack, context] = args;
+  const availableSources = executor.list();
+
+  if (sourceListString !== null && sourceListString !== undefined) {
+    assertString(sourceListString, 'unblock-music source', 256);
+    const invalidSource = sourceListString
+      .split(',')
+      .map(source => source.trim().toLowerCase())
+      .filter(Boolean)
+      .find(source => !availableSources.includes(source));
+    if (invalidSource) {
+      throw new Error(`unblock-music source is not allowed: ${invalidSource}`);
+    }
+  }
+
+  return [
+    sourceListString,
+    assertPlainObject(ncmTrack, 'unblock-music track'),
+    assertPlainObject(context, 'unblock-music context'),
+  ];
+}
+
+function getLastfmApiKey() {
+  const apiKey = process.env.LASTFM_API_KEY || process.env.VUE_APP_LASTFM_API_KEY;
+  if (!apiKey) throw new Error('LASTFM_API_KEY is not configured');
+  return apiKey;
+}
+
+function getLastfmSharedSecret() {
+  const secret =
+    process.env.LASTFM_SHARED_SECRET ||
+    process.env.LASTFM_API_SHARED_SECRET;
+  if (!secret) throw new Error('LASTFM_SHARED_SECRET is not configured');
+  return secret;
+}
+
+function signLastfmParams(params) {
+  const signature = Object.keys(params)
+    .sort()
+    .reduce((acc, key) => `${acc}${key}${params[key]}`, '');
+  return crypto
+    .createHash('md5')
+    .update(signature + getLastfmSharedSecret())
+    .digest('hex');
+}
+
+function validateLastfmRequestArgs(args) {
+  return validatePayloadTuple(args, [
+    value => {
+      const payload = assertPlainObject(value, 'lastfm payload');
+      assertString(payload.method, 'lastfm method', 80);
+      if (!ALLOWED_LASTFM_METHODS.has(payload.method)) {
+        throw new Error('lastfm method is not allowed');
+      }
+      const params = assertPlainObject(payload.params || {}, 'lastfm params');
+      for (const [key, paramValue] of Object.entries(params)) {
+        if (!/^[a-zA-Z0-9_.]+$/.test(key)) {
+          throw new Error('lastfm param key is invalid');
+        }
+        if (
+          !['string', 'number', 'boolean'].includes(typeof paramValue) ||
+          String(paramValue).length > 2048
+        ) {
+          throw new Error('lastfm param value is invalid');
+        }
+      }
+      return { method: payload.method, params };
+    },
+  ]);
+}
+
+function validateTokenArgs(args) {
+  return validatePayloadTuple(args, [
+    value => {
+      assertString(value, 'lastfm token', 256);
+      if (!/^[a-zA-Z0-9_-]+$/.test(value)) {
+        throw new Error('lastfm token is invalid');
+      }
+      return value;
+    },
+  ]);
+}
+
+function validateToubiecArgs(args) {
+  return validatePayloadTuple(args, [
+    value => {
+      const payload = assertPlainObject(value, 'toubiec payload');
+      const id = String(payload.id);
+      if (!/^\d+$/.test(id)) {
+        throw new Error('toubiec id must be numeric');
+      }
+      assertString(payload.level, 'toubiec level', 32);
+      if (!ALLOWED_TOUBIEC_LEVELS.has(payload.level)) {
+        throw new Error('toubiec level is not allowed');
+      }
+      return { id, level: payload.level };
+    },
+  ]);
+}
+
+function parseLoginCookieString(cookieString) {
+  assertString(cookieString, 'login cookie', 20000);
+  return cookieString
+    .split(';;')
+    .map(cookie => cookie.trim())
+    .filter(Boolean)
+    .map(cookie => {
+      const [nameValue, ...attributes] = cookie.split(';').map(part => part.trim());
+      const separatorIndex = nameValue.indexOf('=');
+      if (separatorIndex <= 0) {
+        throw new Error('login cookie contains an invalid name/value pair');
+      }
+      const name = nameValue.slice(0, separatorIndex);
+      const value = nameValue.slice(separatorIndex + 1);
+      if (!/^[A-Za-z0-9_.-]+$/.test(name)) {
+        throw new Error('login cookie name is invalid');
+      }
+      const parsed = { name, value, path: '/' };
+      for (const attribute of attributes) {
+        const [attributeName, attributeValue] = attribute.split('=');
+        if (!attributeName) continue;
+        const normalizedName = attributeName.toLowerCase();
+        if (normalizedName === 'path' && attributeValue?.startsWith('/')) {
+          parsed.path = attributeValue;
+        } else if (normalizedName === 'expires') {
+          const expires = Date.parse(attributeValue);
+          if (!Number.isNaN(expires)) parsed.expirationDate = expires / 1000;
+        } else if (normalizedName === 'max-age') {
+          const maxAge = Number(attributeValue);
+          if (Number.isFinite(maxAge)) {
+            parsed.expirationDate = Math.floor(Date.now() / 1000) + maxAge;
+          }
+        }
+      }
+      return parsed;
+    });
+}
 
 const exitAsk = (e, win) => {
   e.preventDefault(); //阻止默认行为
@@ -23,10 +337,10 @@ const exitAsk = (e, win) => {
       buttons: ['最小化', '直接退出'],
     })
     .then(result => {
-      if (result.response == 0) {
+      if (result.response === 0) {
         e.preventDefault(); //阻止默认行为
         win.minimize(); //调用 最小化实例方法
-      } else if (result.response == 1) {
+      } else if (result.response === 1) {
         win = null;
         //app.quit();
         app.exit(); //exit()直接关闭客户端，不会执行quit();
@@ -137,17 +451,18 @@ export function initIpcMain(win, store, trayEventEmitter) {
   // WIP: Do not enable logging as it has some issues in non-blocking I/O environment.
   // UNM.enableLogging(UNM.LoggingType.ConsoleEnv);
   const unmExecutor = new UNM.Executor();
+  const trustedIpc = createTrustedIpc(win, log);
 
-  ipcMain.handle(
+  trustedIpc.handle(
     'unblock-music',
+    args => validateUnblockMusicArgs(unmExecutor, args),
     /**
      *
-     * @param {*} _
      * @param {string | null} sourceListString
      * @param {Record<string, any>} ncmTrack
      * @param {UNM.Context} context
      */
-    async (_, sourceListString, ncmTrack, context) => {
+    async (_event, sourceListString, ncmTrack, context) => {
       // Formt the track input
       // FIXME: Figure out the structure of Track
       const song = {
@@ -198,10 +513,145 @@ export function initIpcMain(win, store, trayEventEmitter) {
     }
   );
 
-  ipcMain.on('close', e => {
+  trustedIpc.handle(
+    'set-login-cookies',
+    args => validatePayloadTuple(args, [value => value]),
+    async (_event, cookieString) => {
+      const cookies = parseLoginCookieString(cookieString);
+      await Promise.all(
+        cookies.map(cookie => {
+          const cookieDetails = {
+            url: 'https://music.163.com',
+            domain: '.music.163.com',
+            path: cookie.path,
+            name: cookie.name,
+            value: cookie.value,
+            httpOnly: true,
+            secure: true,
+            sameSite: 'lax',
+          };
+          if (cookie.expirationDate) {
+            cookieDetails.expirationDate = cookie.expirationDate;
+          }
+          return session.defaultSession.cookies.set(cookieDetails);
+        })
+      );
+      store.set('auth.isLoggedIn', true);
+      return { ok: true, names: cookies.map(cookie => cookie.name) };
+    }
+  );
+
+  trustedIpc.handle('clear-login-cookies', assertNoArgs, async () => {
+    await Promise.all(
+      ['MUSIC_U', '__csrf'].map(name =>
+        session.defaultSession.cookies
+          .remove('https://music.163.com', name)
+          .catch(() => null)
+      )
+    );
+    store.set('auth.isLoggedIn', false);
+    return { ok: true };
+  });
+
+  trustedIpc.handle(
+    'lastfm-auth-url',
+    args =>
+      validatePayloadTuple(args, [
+        value => {
+          assertString(value, 'lastfm callback URL', 2048);
+          const parsedUrl = new URL(value);
+          if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
+            throw new Error('lastfm callback URL protocol is not allowed');
+          }
+          return parsedUrl.toString();
+        },
+      ]),
+    async (_event, callbackUrl) => {
+      const authUrl = new URL('https://www.last.fm/api/auth/');
+      authUrl.searchParams.set('api_key', getLastfmApiKey());
+      authUrl.searchParams.set('cb', callbackUrl);
+      return authUrl.toString();
+    }
+  );
+
+  trustedIpc.handle(
+    'lastfm-get-session',
+    validateTokenArgs,
+    async (_event, token) => {
+      const params = {
+        api_key: getLastfmApiKey(),
+        method: 'auth.getSession',
+        token,
+      };
+      const response = await axios.get(LASTFM_API_URL, {
+        params: {
+          ...params,
+          api_sig: signLastfmParams(params),
+          format: 'json',
+        },
+      });
+      const sessionInfo = response.data?.session;
+      if (!sessionInfo?.key) {
+        throw new Error('Last.fm did not return a session key');
+      }
+      store.set('lastfm.session', sessionInfo);
+      return {
+        connected: true,
+        name: sessionInfo.name,
+      };
+    }
+  );
+
+  trustedIpc.handle(
+    'lastfm-request',
+    validateLastfmRequestArgs,
+    async (_event, { method, params }) => {
+      const lastfmSession = store.get('lastfm.session');
+      if (!lastfmSession?.key) {
+        throw new Error('Last.fm is not connected');
+      }
+      const signedParams = {
+        ...params,
+        api_key: getLastfmApiKey(),
+        method,
+        sk: lastfmSession.key,
+      };
+      const response = await axios.post(LASTFM_API_URL, null, {
+        params: {
+          ...signedParams,
+          api_sig: signLastfmParams(signedParams),
+          format: 'json',
+        },
+      });
+      return response.data;
+    }
+  );
+
+  trustedIpc.handle('lastfm-clear-session', assertNoArgs, async () => {
+    store.delete('lastfm.session');
+    return { ok: true };
+  });
+
+  trustedIpc.handle(
+    'toubiec-get-song-url',
+    validateToubiecArgs,
+    async (_event, { id, level }) => {
+      const token = process.env.TOUBIEC_TOKEN;
+      if (!token) throw new Error('TOUBIEC_TOKEN is not configured');
+      const response = await axios.post(
+        `${TOUBIEC_API_URL}/getSongUrl`,
+        { id, level, token },
+        { timeout: 15000 }
+      );
+      return response.data;
+    }
+  );
+
+  trustedIpc.on('close', assertNoArgs, () => {
+    const closeEvent = { preventDefault() {} };
     if (isMac) {
       win.hide();
-      exitAsk(e, win);
+      exitAsk(closeEvent, win);
     } else {
       let closeOpt = store.get('settings.closeAppOption');
       if (closeOpt === 'exit') {
@@ -209,23 +659,34 @@ export function initIpcMain(win, store, trayEventEmitter) {
         //app.quit();
         app.exit(); //exit()直接关闭客户端，不会执行quit();
       } else if (closeOpt === 'minimizeToTray') {
-        e.preventDefault();
+        closeEvent.preventDefault();
         win.hide();
       } else {
-        exitAskWithoutMac(e, win);
+        exitAskWithoutMac(closeEvent, win);
       }
     }
   });
 
-  ipcMain.on('minimize', () => {
+  trustedIpc.on('minimize', assertNoArgs, () => {
     win.minimize();
   });
 
-  ipcMain.on('maximizeOrUnmaximize', () => {
+  trustedIpc.on('maximizeOrUnmaximize', assertNoArgs, () => {
     win.isMaximized() ? win.unmaximize() : win.maximize();
   });
 
-  ipcMain.on('settings', (event, options) => {
+  trustedIpc.on(
+    'setAlwaysOnTop',
+    args => validatePayloadTuple(args, [value => assertBoolean(value)]),
+    (_event, enabled) => {
+      win.setAlwaysOnTop(enabled);
+    }
+  );
+
+  trustedIpc.on(
+    'settings',
+    args => validatePayloadTuple(args, [value => assertPlainObject(value)]),
+    (_event, options) => {
     store.set('settings', options);
     if (options.enableGlobalShortcut) {
       registerGlobalShortcut(win, store);
@@ -233,9 +694,13 @@ export function initIpcMain(win, store, trayEventEmitter) {
       log('unregister global shortcut');
       globalShortcut.unregisterAll();
     }
-  });
+    }
+  );
 
-  ipcMain.on('playDiscordPresence', (event, track) => {
+  trustedIpc.on(
+    'playDiscordPresence',
+    args => validatePayloadTuple(args, [value => assertPlainObject(value)]),
+    (_event, track) => {
     client.updatePresence({
       details: track.name + ' - ' + track.ar.map(ar => ar.name).join(','),
       state: track.al.name,
@@ -246,9 +711,13 @@ export function initIpcMain(win, store, trayEventEmitter) {
       smallImageText: 'Playing',
       instance: true,
     });
-  });
+    }
+  );
 
-  ipcMain.on('pauseDiscordPresence', (event, track) => {
+  trustedIpc.on(
+    'pauseDiscordPresence',
+    args => validatePayloadTuple(args, [value => assertPlainObject(value)]),
+    (_event, track) => {
     client.updatePresence({
       details: track.name + ' - ' + track.ar.map(ar => ar.name).join(','),
       state: track.al.name,
@@ -258,37 +727,54 @@ export function initIpcMain(win, store, trayEventEmitter) {
       smallImageText: 'Pause',
       instance: true,
     });
-  });
+    }
+  );
 
-  ipcMain.on('setProxy', (event, config) => {
-    const proxyRules = `${config.protocol}://${config.server}:${config.port}`;
+  trustedIpc.on('setProxy', validateSetProxyArgs, (_event, config) => {
+    const proxyRules =
+      config.type === 'direct'
+        ? ''
+        : config.type === 'system'
+          ? undefined
+          : `${config.type}://${config.host}:${config.port}`;
     store.set('proxy', proxyRules);
     win.webContents.session.setProxy(
-      {
-        proxyRules,
-      },
+      proxyRules === undefined ? {} : { proxyRules },
       () => {
         log('finished setProxy');
       }
     );
   });
 
-  ipcMain.on('removeProxy', (event, arg) => {
+  trustedIpc.on('removeProxy', assertNoArgs, () => {
     log('removeProxy');
     win.webContents.session.setProxy({});
     store.set('proxy', '');
   });
 
-  ipcMain.on('switchGlobalShortcutStatusTemporary', (e, status) => {
+  trustedIpc.on(
+    'switchGlobalShortcutStatusTemporary',
+    args =>
+      validatePayloadTuple(args, [
+        value => {
+          assertString(value, 'shortcut status', 16);
+          if (!['disable', 'enable'].includes(value)) {
+            throw new Error('shortcut status must be disable or enable');
+          }
+          return value;
+        },
+      ]),
+    (_event, status) => {
     log('switchGlobalShortcutStatusTemporary');
     if (status === 'disable') {
       globalShortcut.unregisterAll();
     } else {
       registerGlobalShortcut(win, store);
     }
-  });
+    }
+  );
 
-  ipcMain.on('updateShortcut', (e, { id, type, shortcut }) => {
+  trustedIpc.on('updateShortcut', validateShortcutArgs, (_event, { id, type, shortcut }) => {
     log('updateShortcut');
     let shortcuts = store.get('settings.shortcuts');
     let newShortcut = shortcuts.find(s => s.id === id);
@@ -300,7 +786,7 @@ export function initIpcMain(win, store, trayEventEmitter) {
     registerGlobalShortcut(win, store);
   });
 
-  ipcMain.on('restoreDefaultShortcuts', () => {
+  trustedIpc.on('restoreDefaultShortcuts', assertNoArgs, () => {
     log('restoreDefaultShortcuts');
     store.set('settings.shortcuts', cloneDeep(shortcuts));
 
@@ -310,17 +796,26 @@ export function initIpcMain(win, store, trayEventEmitter) {
   });
 
   if (isCreateTray) {
-    ipcMain.on('updateTrayTooltip', (_, title) => {
+    trustedIpc.on(
+      'updateTrayTooltip',
+      args => validatePayloadTuple(args, [value => assertString(value, 'title')]),
+      (_event, title) => {
       trayEventEmitter.emit('updateTooltip', title);
-    });
-    ipcMain.on('updateTrayPlayState', (_, isPlaying) => {
+      }
+    );
+    trustedIpc.on(
+      'updateTrayPlayState',
+      args => validatePayloadTuple(args, [value => assertBoolean(value)]),
+      (_event, isPlaying) => {
       trayEventEmitter.emit('updatePlayState', isPlaying);
-    });
-    ipcMain.on('updateTrayLikeState', (_, isLiked) => {
+      }
+    );
+    trustedIpc.on(
+      'updateTrayLikeState',
+      args => validatePayloadTuple(args, [value => assertBoolean(value)]),
+      (_event, isLiked) => {
       trayEventEmitter.emit('updateLikeState', isLiked);
-    });
-    ipcMain.on('updateTrayIcon', () => {
-      trayEventEmitter.emit('updateIcon');
-    });
+      }
+    );
   }
 }

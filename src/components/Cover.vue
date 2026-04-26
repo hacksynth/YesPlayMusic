@@ -5,6 +5,7 @@
     @mouseover="focus = true"
     @mouseleave="focus = false"
     @click="clickCoverToPlay ? play() : goTo()"
+    @contextmenu.prevent="$emit('contextmenu', $event)"
   >
     <div class="cover-container">
       <div class="shade">
@@ -30,6 +31,7 @@
 
 <script>
 export default {
+  emits: ['contextmenu'],
   props: {
     id: { type: Number, required: true },
     type: { type: String, required: true },

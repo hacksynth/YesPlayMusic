@@ -4,10 +4,10 @@
       <Win32Titlebar v-if="enableWin32Titlebar" />
       <LinuxTitlebar v-if="enableLinuxTitlebar" />
       <div class="navigation-buttons">
-        <button-icon @click.native="go('back')"
+        <button-icon @click="go('back')"
           ><svg-icon icon-class="arrow-left"
         /></button-icon>
-        <button-icon @click.native="go('forward')"
+        <button-icon @click="go('forward')"
           ><svg-icon icon-class="arrow-right"
         /></button-icon>
       </div>
@@ -119,12 +119,10 @@ export default {
     },
   },
   created() {
-    if (process.platform === 'win32') {
+    const platform = window.yesPlayMusicNative?.platform;
+    if (platform === 'win32') {
       this.enableWin32Titlebar = true;
-    } else if (
-      process.platform === 'linux' &&
-      this.settings.linuxEnableCustomTitlebar
-    ) {
+    } else if (platform === 'linux' && this.settings.linuxEnableCustomTitlebar) {
       this.enableLinuxTitlebar = true;
     }
   },

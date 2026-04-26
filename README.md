@@ -1,19 +1,3 @@
-<div align="center">
-	<a href="http://go.warp.dev/YesPlayMusic" target="_blank">
-		<sup>Special thanks to:</sup>
-		<br>
-		<img alt="Warp sponsorship" width="400" src="https://github.com/warpdotdev/brand-assets/blob/main/Github/Sponsor/Warp-Github-LG-03.png?raw=true">
-		<br>
-		<h>Warp is built for coding with multiple AI agents</b>
-		<br>
-		<sup>Available for macOS, Linux and Windows</sup>
-	</a>
-</div>
-
-<br>
-
----
-
 <br />
 <p align="center">
   <a href="https://music.qier222.com" target="blank">
@@ -88,7 +72,7 @@ Electron 版本由 [@hawtim](https://github.com/hawtim) 和 [@qier222](https://g
 
 [![Powered by Vercel](https://www.datocms-assets.com/31049/1618983297-powered-by-vercel.svg)](https://vercel.com/?utm_source=ohmusic&utm_campaign=oss)
 
-1. 部署网易云 API，详情参见 [Binaryify/NeteaseCloudMusicApi](https://neteasecloudmusicapi.vercel.app/#/?id=%e5%ae%89%e8%a3%85)
+1. 部署网易云 API，详情参见 [neteasecloudmusicapienhanced/api-enhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced)
    。你也可以将 API 部署到 Vercel。
 
 2. 点击本仓库右上角的 Fork，复制本仓库到你的 GitHub 账号。
@@ -119,7 +103,7 @@ Electron 版本由 [@hawtim](https://github.com/hawtim) 和 [@qier222](https://g
 
 除了部署到 Vercel，你还可以部署到自己的服务器上
 
-1. 部署网易云 API，详情参见 [Binaryify/NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)
+1. 部署网易云 API，详情参见 [neteasecloudmusicapienhanced/api-enhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced)
 2. 克隆本仓库
 
 ```sh
@@ -129,7 +113,7 @@ git clone --recursive https://github.com/qier222/YesPlayMusic.git
 3. 安装依赖
 
 ```sh
-yarn install
+npm install
 
 ```
 
@@ -144,7 +128,7 @@ VUE_APP_NETEASE_API_URL=http://localhost:3000
 6. 编译打包
 
 ```sh
-yarn run build
+npm run build
 ```
 
 7. 将 `/dist` 目录下的文件上传到你的 Web 服务器
@@ -196,19 +180,18 @@ bash <(curl -s -L https://raw.githubusercontent.com/qier222/YesPlayMusic/main/in
 4. 由于 replit 个人版限制内存为 1G（教育版为 3G），构建过程中可能会失败，请再次运行上述命令或运行以下命令：
 
 ```sh
-cd /home/runner/${REPL_SLUG}/music && yarn install && yarn run build
+cd /home/runner/${REPL_SLUG}/music && npm install && npm run build
 ```
 
 ## 👷‍♂️ 打包客户端
 
 如果在 Release 页面没有找到适合你的设备的安装包的话，你可以根据下面的步骤来打包自己的客户端。
 
-1. 打包 Electron 需要用到 Node.js 和 Yarn。可前往 [Node.js 官网](https://nodejs.org/zh-cn/) 下载安装包。安装 Node.js
-   后可在终端里执行 `npm install -g yarn` 来安装 Yarn。
+1. 打包 Electron 需要用到 Node.js 和 npm。可前往 [Node.js 官网](https://nodejs.org/zh-cn/) 下载安装包。
 
 2. 使用 `git clone --recursive https://github.com/qier222/YesPlayMusic.git` 克隆本仓库到本地。
 
-3. 使用 `yarn install` 安装项目依赖。
+3. 使用 `npm install` 安装项目依赖。
 
 4. 复制 `/.env.example` 文件为 `/.env` 。
 
@@ -216,36 +199,36 @@ cd /home/runner/${REPL_SLUG}/music && yarn install && yarn run build
 
 | 命令                                       | 说明                      |
 | ------------------------------------------ | ------------------------- |
-| `yarn electron:build --windows nsis:ia32`  | Windows 32 位             |
-| `yarn electron:build --windows nsis:arm64` | Windows ARM               |
-| `yarn electron:build --linux deb:armv7l`   | Debian armv7l（树莓派等） |
-| `yarn electron:build --macos dir:arm64`    | macOS ARM                 |
+| `npm run electron:build -- --windows nsis:ia32`  | Windows 32 位             |
+| `npm run electron:build -- --windows nsis:arm64` | Windows ARM               |
+| `npm run electron:build -- --linux deb:armv7l`   | Debian armv7l（树莓派等） |
+| `npm run electron:build -- --macos dir:arm64`    | macOS ARM                 |
 
 ## :computer: 配置开发环境
 
-本项目由 [NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi) 提供 API。
+本项目由 [api-enhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced) 提供 API。
 
 运行本项目
 
 ```shell
 # 安装依赖
-yarn install
+npm install
 
 # 创建本地环境变量
 cp .env.example .env
 
 # 运行（网页端）
-yarn serve
+npm run serve
 
 # 运行（electron）
-yarn electron:serve
+npm run electron:serve
 ```
 
-本地运行 NeteaseCloudMusicApi，或者将 API [部署至 Vercel](#%EF%B8%8F-部署至-vercel)
+本地运行 api-enhanced，或者将 API [部署至 Vercel](#%EF%B8%8F-部署至-vercel)
 
 ```shell
 # 运行 API （默认 3000 端口）
-yarn netease_api:run
+npm run netease_api:run
 ```
 
 ## ☑️ Todo
@@ -262,7 +245,7 @@ yarn netease_api:run
 
 ## 灵感来源
 
-API 源代码来自 [Binaryify/NeteaseCloudMusicApi](https://github.com/Binaryify/NeteaseCloudMusicApi)
+API 源代码来自 [neteasecloudmusicapienhanced/api-enhanced](https://github.com/neteasecloudmusicapienhanced/api-enhanced)
 
 - [Apple Music](https://music.apple.com)
 - [YouTube Music](https://music.youtube.com)

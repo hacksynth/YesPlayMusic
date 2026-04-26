@@ -1,113 +1,123 @@
-import Vue from 'vue';
 import dayjs from 'dayjs';
 import duration from 'dayjs/plugin/duration';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import locale from '@/locale';
 
-Vue.filter('formatTime', (Milliseconds, format = 'HH:MM:SS') => {
-  if (!Milliseconds) return '';
-  dayjs.extend(duration);
-  dayjs.extend(relativeTime);
+dayjs.extend(duration);
+dayjs.extend(relativeTime);
 
-  let time = dayjs.duration(Milliseconds);
-  let hours = time.hours().toString();
-  let mins = time.minutes().toString();
-  let seconds = time.seconds().toString().padStart(2, '0');
+const humanTimeUnits = {
+  'zh-CN': {
+    hours: '\u5c0f\u65f6',
+    minutes: '\u5206\u949f',
+  },
+  'zh-TW': {
+    hours: '\u5c0f\u6642',
+    minutes: '\u5206\u9418',
+  },
+};
+
+const getLocale = () => {
+  const current = locale.locale;
+  return typeof current === 'string' ? current : current?.value;
+};
+
+export function formatTime(milliseconds, format = 'HH:MM:SS') {
+  if (!milliseconds) return '';
+
+  const time = dayjs.duration(milliseconds);
+  const hours = time.hours().toString();
+  const mins = time.minutes().toString();
+  const seconds = time.seconds().toString().padStart(2, '0');
 
   if (format === 'HH:MM:SS') {
     return hours !== '0'
       ? `${hours}:${mins.padStart(2, '0')}:${seconds}`
       : `${mins}:${seconds}`;
-  } else if (format === 'Human') {
-    let hoursUnit, minitesUnit;
-    switch (locale.locale) {
-      case 'zh-CN':
-        hoursUnit = '小时';
-        minitesUnit = '分钟';
-        break;
-      case 'zh-TW':
-        hoursUnit = '小時';
-        minitesUnit = '分鐘';
-        break;
-      default:
-        hoursUnit = 'hr';
-        minitesUnit = 'min';
-        break;
-    }
-    return hours !== '0'
-      ? `${hours} ${hoursUnit} ${mins} ${minitesUnit}`
-      : `${mins} ${minitesUnit}`;
   }
-});
 
-Vue.filter('formatDate', (timestamp, format = 'MMM D, YYYY') => {
+  if (format === 'Human') {
+    const units = humanTimeUnits[getLocale()] || {
+      hours: 'hr',
+      minutes: 'min',
+    };
+    return hours !== '0'
+      ? `${hours} ${units.hours} ${mins} ${units.minutes}`
+      : `${mins} ${units.minutes}`;
+  }
+
+  return '';
+}
+
+export function formatDate(timestamp, format = 'MMM D, YYYY') {
   if (!timestamp) return '';
-  if (locale.locale === 'zh-CN') format = 'YYYY年MM月DD日';
-  else if (locale.locale === 'zh-TW') format = 'YYYY年MM月DD日';
+  if (['zh-CN', 'zh-TW'].includes(getLocale())) {
+    format = 'YYYY\u5e74M\u6708D\u65e5';
+  }
   return dayjs(timestamp).format(format);
-});
+}
 
-Vue.filter('formatAlbumType', (type, album) => {
+export function formatAlbumType(type, album) {
   if (!type) return '';
   if (type === 'EP/Single') {
     return album.size === 1 ? 'Single' : 'EP';
-  } else if (type === 'Single') {
+  }
+  if (type === 'Single') {
     return 'Single';
-  } else if (type === '专辑') {
+  }
+  if (type === '\u4e13\u8f91') {
     return 'Album';
-  } else {
-    return type;
   }
-});
+  return type;
+}
 
-Vue.filter('resizeImage', (imgUrl, size = 512) => {
+export function resizeImage(imgUrl, size = 512) {
   if (!imgUrl) return '';
-  let httpsImgUrl = imgUrl;
-  if (imgUrl.slice(0, 5) !== 'https') {
-    httpsImgUrl = 'https' + imgUrl.slice(4);
-  }
-  return `${httpsImgUrl}?param=${size}y${size}`;
-});
+  return `${imgUrl.replace(/^http:/, 'https:')}?param=${size}y${size}`;
+}
 
-Vue.filter('formatPlayCount', count => {
+export function formatPlayCount(count) {
   if (!count) return '';
-  if (locale.locale === 'zh-CN') {
+
+  if (getLocale() === 'zh-CN') {
     if (count > 100000000) {
-      return `${Math.floor((count / 100000000) * 100) / 100}亿`; // 2.32 亿
+      return `${Math.floor((count / 100000000) * 100) / 100}\u4ebf`;
     }
     if (count > 100000) {
-      return `${Math.floor((count / 10000) * 10) / 10}万`; // 232.1 万
+      return `${Math.floor((count / 10000) * 10) / 10}\u4e07`;
     }
     if (count > 10000) {
-      return `${Math.floor((count / 10000) * 100) / 100}万`; // 2.3 万
-    }
-    return count;
-  } else if (locale.locale === 'zh-TW') {
-    if (count > 100000000) {
-      return `${Math.floor((count / 100000000) * 100) / 100}億`; // 2.32 億
-    }
-    if (count > 100000) {
-      return `${Math.floor((count / 10000) * 10) / 10}萬`; // 232.1 萬
-    }
-    if (count > 10000) {
-      return `${Math.floor((count / 10000) * 100) / 100}萬`; // 2.3 萬
-    }
-    return count;
-  } else {
-    if (count > 10000000) {
-      return `${Math.floor((count / 1000000) * 10) / 10}M`; // 233.2M
-    }
-    if (count > 1000000) {
-      return `${Math.floor((count / 1000000) * 100) / 100}M`; // 2.3M
-    }
-    if (count > 1000) {
-      return `${Math.floor((count / 1000) * 100) / 100}K`; // 233.23K
+      return `${Math.floor((count / 10000) * 100) / 100}\u4e07`;
     }
     return count;
   }
-});
 
-Vue.filter('toHttps', url => {
+  if (getLocale() === 'zh-TW') {
+    if (count > 100000000) {
+      return `${Math.floor((count / 100000000) * 100) / 100}\u5104`;
+    }
+    if (count > 100000) {
+      return `${Math.floor((count / 10000) * 10) / 10}\u842c`;
+    }
+    if (count > 10000) {
+      return `${Math.floor((count / 10000) * 100) / 100}\u842c`;
+    }
+    return count;
+  }
+
+  if (count > 10000000) {
+    return `${Math.floor((count / 1000000) * 10) / 10}M`;
+  }
+  if (count > 1000000) {
+    return `${Math.floor((count / 1000000) * 100) / 100}M`;
+  }
+  if (count > 1000) {
+    return `${Math.floor((count / 1000) * 100) / 100}K`;
+  }
+  return count;
+}
+
+export function toHttps(url) {
   if (!url) return '';
   return url.replace(/^http:/, 'https:');
-});
+}

@@ -22,7 +22,7 @@ import locale from '@/locale';
 import { mapMutations, mapState, mapActions } from 'vuex';
 import { dailyRecommendTracks } from '@/api/playlist';
 import { isAccountLoggedIn } from '@/utils/auth';
-import sample from 'lodash/sample';
+import sample from 'lodash-es/sample';
 
 const defaultCovers = [
   'https://p2.music.126.net/0-Ybpa8FrDfRgKYCTJD8Xg==/109951164796696795.jpg',

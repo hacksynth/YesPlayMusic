@@ -6,7 +6,7 @@
     >
       <Cover
         :id="playlist.id"
-        :image-url="playlist.coverImgUrl | resizeImage(1024)"
+        :image-url="resizeImage(playlist.coverImgUrl, 1024)"
         :show-play-button="true"
         :always-show-shadow="true"
         :click-cover-to-play="true"
@@ -14,10 +14,10 @@
         type="playlist"
         :cover-hover="false"
         :play-button-size="18"
-        @click.right.native="openMenu"
+        @contextmenu="openMenu"
       />
       <div class="info">
-        <div class="title" @click.right="openMenu"
+        <div class="title" @contextmenu.prevent="openMenu"
           ><span v-if="playlist.privacy === 10" class="lock-icon">
             <svg-icon icon-class="lock" /></span
           >{{ playlist.name }}</div
@@ -42,14 +42,14 @@
         </div>
         <div class="date-and-count">
           {{ $t('playlist.updatedAt') }}
-          {{ playlist.updateTime | formatDate }} · {{ playlist.trackCount }}
+          {{ formatDate(playlist.updateTime) }} · {{ playlist.trackCount }}
           {{ $t('common.songs') }}
         </div>
         <div class="description" @click="toggleFullDescription">
           {{ playlist.description }}
         </div>
         <div class="buttons">
-          <ButtonTwoTone icon-class="play" @click.native="playPlaylistByID()">
+          <ButtonTwoTone icon-class="play" @click="playPlaylistByID()">
             {{ $t('common.play') }}
           </ButtonTwoTone>
           <ButtonTwoTone
@@ -62,7 +62,7 @@
             :background-color="
               playlist.subscribed ? 'var(--color-secondary-bg)' : ''
             "
-            @click.native="likePlaylist"
+            @click="likePlaylist"
           >
           </ButtonTwoTone>
           <ButtonTwoTone
@@ -70,7 +70,7 @@
             :icon-button="true"
             :horizontal-padding="0"
             color="grey"
-            @click.native="openMenu"
+            @click="openMenu"
           >
           </ButtonTwoTone>
         </div>
@@ -95,9 +95,9 @@
       <div
         class="title"
         :class="specialPlaylistInfo.gradient"
-        @click.right="openMenu"
+        @contextmenu.prevent="openMenu"
       >
-        <!-- <img :src="playlist.coverImgUrl | resizeImage" /> -->
+        <!-- <img :src="resizeImage(playlist.coverImgUrl)" /> -->
         {{ specialPlaylistInfo.name }}
       </div>
       <div class="subtitle"
@@ -109,7 +109,7 @@
           class="play-button"
           icon-class="play"
           color="grey"
-          @click.native="playPlaylistByID()"
+          @click="playPlaylistByID()"
         >
           {{ $t('common.play') }}
         </ButtonTwoTone>
@@ -123,7 +123,7 @@
           :background-color="
             playlist.subscribed ? 'var(--color-secondary-bg)' : ''
           "
-          @click.native="likePlaylist"
+          @click="likePlaylist"
         >
         </ButtonTwoTone>
         <ButtonTwoTone
@@ -131,7 +131,7 @@
           :icon-button="true"
           :horizontal-padding="0"
           color="grey"
-          @click.native="openMenu"
+          @click="openMenu"
         >
         </ButtonTwoTone>
       </div>
@@ -141,7 +141,7 @@
       <h1>
         <img
           class="avatar"
-          :src="data.user.avatarUrl | resizeImage"
+          :src="resizeImage(data.user.avatarUrl)"
           loading="lazy"
         />
         {{ data.user.nickname }}{{ $t('library.sLikedSongs') }}
@@ -178,7 +178,7 @@
         v-show="hasMore"
         color="grey"
         :loading="loadingMore"
-        @click.native="loadMore(100)"
+        @click="loadMore(100)"
         >{{ $t('explore.loadMore') }}</ButtonTwoTone
       >
     </div>
@@ -229,6 +229,7 @@ import {
 import { getTrackDetail } from '@/api/track';
 import { isAccountLoggedIn } from '@/utils/auth';
 import nativeAlert from '@/utils/nativeAlert';
+import { normalizeError } from '@/utils/request';
 import locale from '@/locale';
 
 import ButtonTwoTone from '@/components/ButtonTwoTone.vue';
@@ -463,6 +464,12 @@ export default {
             this.loadingMore = true;
             this.loadMore();
           }
+        })
+        .catch(error => {
+          const { message } = normalizeError(error);
+          this.showToast(message);
+          NProgress.done();
+          this.show = true;
         });
     },
     loadMore(loadNum = 100) {
@@ -512,7 +519,7 @@ export default {
     searchInPlaylist() {
       this.displaySearchInPlaylist =
         !this.displaySearchInPlaylist || this.isLikeSongsPage;
-      if (this.displaySearchInPlaylist == false) {
+      if (this.displaySearchInPlaylist === false) {
         this.searchKeyWords = '';
         this.inputSearchKeyWords = '';
       } else {

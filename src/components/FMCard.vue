@@ -3,7 +3,7 @@
     <img :src="nextTrackCover" style="display: none" loading="lazy" />
     <img
       class="cover"
-      :src="track.album && track.album.picUrl | resizeImage(512)"
+      :src="resizeImage(track.album && track.album.picUrl, 512)"
       loading="lazy"
       @click="goToAlbum"
     />
@@ -14,17 +14,17 @@
       </div>
       <div class="controls">
         <div class="buttons">
-          <button-icon title="不喜欢" @click.native="moveToFMTrash">
+          <button-icon title="不喜欢" @click="moveToFMTrash">
             <svg-icon id="thumbs-down" icon-class="thumbs-down" />
           </button-icon>
           <button-icon
             :title="$t(isPlaying ? 'player.pause' : 'player.play')"
             class="play"
-            @click.native="play"
+            @click="play"
           >
             <svg-icon :icon-class="isPlaying ? 'pause' : 'play'" />
           </button-icon>
-          <button-icon :title="$t('player.next')" @click.native="next">
+          <button-icon :title="$t('player.next')" @click="next">
             <svg-icon icon-class="next" />
           </button-icon>
         </div>
@@ -38,8 +38,9 @@
 import ButtonIcon from '@/components/ButtonIcon.vue';
 import ArtistsInLine from '@/components/ArtistsInLine.vue';
 import { mapState } from 'vuex';
-import * as Vibrant from 'node-vibrant/dist/vibrant.worker.min.js';
+import { Vibrant } from 'node-vibrant/browser';
 import Color from 'color';
+import { DEFAULT_COVER_URL } from '@/utils/constants';
 
 export default {
   name: 'FMCard',
@@ -61,10 +62,13 @@ export default {
       return this.track.artists || this.track.ar || [];
     },
     nextTrackCover() {
-      return `${this.player._personalFMNextTrack?.album?.picUrl.replace(
-        'http://',
-        'https://'
-      )}?param=512y512`;
+      // Defend against Personal FM preloading a next track without album art.
+      const cover =
+        this.player._personalFMNextTrack?.album?.picUrl?.replace(
+          'http://',
+          'https://'
+        ) ?? DEFAULT_COVER_URL;
+      return `${cover}?param=512y512`;
     },
   },
   watch: {
@@ -91,11 +95,10 @@ export default {
       this.player.moveToFMTrash();
     },
     getColor() {
-      if (!this.player.personalFMTrack?.album?.picUrl) return;
-      const cover = `${this.player.personalFMTrack.album.picUrl.replace(
-        'http://',
-        'https://'
-      )}?param=512y512`;
+      // Defend against Personal FM tracks missing album.picUrl during color extraction.
+      const coverUrl = this.player.personalFMTrack?.album?.picUrl;
+      if (!coverUrl) return;
+      const cover = `${coverUrl.replace('http://', 'https://')}?param=512y512`;
       Vibrant.from(cover, { colorCount: 1 })
         .getPalette()
         .then(palette => {

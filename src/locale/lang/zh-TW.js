@@ -166,12 +166,6 @@ export default {
       light: '淺色',
       dark: '深色',
     },
-    trayIcon: {
-      text: '工作列圖示顏色',
-      auto: '自動',
-      light: '淺色',
-      dark: '深色',
-    },
     automaticallyCacheSongs: '自動快取歌曲',
     clearSongsCache: '清除歌曲快取',
     cacheCount: '已快取 {song} 首 ({size})',

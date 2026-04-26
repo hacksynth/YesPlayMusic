@@ -1,80 +1,61 @@
-// Last.fm API documents 👉 https://www.last.fm/api
+// Last.fm API documents: https://www.last.fm/api
 
 import axios from 'axios';
-import md5 from 'crypto-js/md5';
 
 const apiKey = process.env.VUE_APP_LASTFM_API_KEY;
-const apiSharedSecret = process.env.VUE_APP_LASTFM_API_SHARED_SECRET;
 const baseUrl = window.location.origin;
 const url = 'https://ws.audioscrobbler.com/2.0/';
 
-const sign = params => {
-  const sortParamsKeys = Object.keys(params).sort();
-  const sortedParams = sortParamsKeys.reduce((acc, key) => {
-    acc[key] = params[key];
-    return acc;
-  }, {});
-  let signature = '';
-  for (const [key, value] of Object.entries(sortedParams)) {
-    signature += `${key}${value}`;
+function requireElectronLastfm() {
+  if (process.env.IS_ELECTRON !== true) {
+    throw new Error('Last.fm signing must be performed by the backend proxy');
   }
-  return md5(signature + apiSharedSecret).toString();
-};
-
-export function auth() {
-  const url = process.env.IS_ELECTRON
-    ? `https://www.last.fm/api/auth/?api_key=${apiKey}&cb=${baseUrl}/#/lastfm/callback`
-    : `https://www.last.fm/api/auth/?api_key=${apiKey}&cb=${baseUrl}/lastfm/callback`;
-  window.open(url);
 }
 
-export function authGetSession(token) {
-  const signature = md5(
-    `api_key${apiKey}methodauth.getSessiontoken${token}${apiSharedSecret}`
-  ).toString();
+export async function auth() {
+  if (process.env.IS_ELECTRON === true) {
+    const callbackUrl = `${baseUrl}/#/lastfm/callback`;
+    const authUrl = await window.electron.ipcRenderer.invoke(
+      'lastfm-auth-url',
+      callbackUrl
+    );
+    window.location.assign(authUrl);
+    return;
+  }
+
+  window.location.assign(
+    `https://www.last.fm/api/auth/?api_key=${apiKey}&cb=${baseUrl}/lastfm/callback`
+  );
+}
+
+export async function authGetSession(token) {
+  if (process.env.IS_ELECTRON === true) {
+    const session = await window.electron.ipcRenderer.invoke(
+      'lastfm-get-session',
+      token
+    );
+    return { data: { session } };
+  }
+
   return axios({
-    url,
-    method: 'GET',
-    params: {
-      method: 'auth.getSession',
-      format: 'json',
-      api_key: apiKey,
-      api_sig: signature,
-      token,
-    },
+    url: '/api/lastfm/session',
+    method: 'POST',
+    data: { token },
   });
 }
 
 export function trackUpdateNowPlaying(params) {
-  params.api_key = apiKey;
-  params.method = 'track.updateNowPlaying';
-  params.sk = JSON.parse(localStorage.getItem('lastfm'))['key'];
-  const signature = sign(params);
-
-  return axios({
-    url,
-    method: 'POST',
-    params: {
-      ...params,
-      api_sig: signature,
-      format: 'json',
-    },
+  requireElectronLastfm();
+  return window.electron.ipcRenderer.invoke('lastfm-request', {
+    method: 'track.updateNowPlaying',
+    params,
   });
 }
 
 export function trackScrobble(params) {
-  params.api_key = apiKey;
-  params.method = 'track.scrobble';
-  params.sk = JSON.parse(localStorage.getItem('lastfm'))['key'];
-  const signature = sign(params);
-
-  return axios({
-    url,
-    method: 'POST',
-    params: {
-      ...params,
-      api_sig: signature,
-      format: 'json',
-    },
+  requireElectronLastfm();
+  return window.electron.ipcRenderer.invoke('lastfm-request', {
+    method: 'track.scrobble',
+    params,
   });
 }

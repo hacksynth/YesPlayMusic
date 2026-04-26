@@ -1,6 +1,7 @@
 import axios from 'axios';
 import Dexie from 'dexie';
 import store from '@/store';
+import { DEFAULT_COVER_URL } from '@/utils/constants';
 // import pkg from "../../package.json";
 
 const db = new Dexie('yesplaymusic');
@@ -53,11 +54,13 @@ async function deleteExcessCache() {
 export function cacheTrackSource(trackInfo, url, bitRate, from = 'netease') {
   if (!process.env.IS_ELECTRON) return;
   const name = trackInfo.name;
+  // Defend against cached tracks whose artist arrays are missing or empty.
   const artist =
-    (trackInfo.ar && trackInfo.ar[0]?.name) ||
-    (trackInfo.artists && trackInfo.artists[0]?.name) ||
+    trackInfo.ar?.[0]?.name ||
+    trackInfo.artists?.[0]?.name ||
     'Unknown';
-  let cover = trackInfo.al.picUrl;
+  // Defend against cached tracks whose album or cover URL is missing.
+  let cover = trackInfo?.al?.picUrl ?? DEFAULT_COVER_URL;
   if (cover.slice(0, 5) !== 'https') {
     cover = 'https' + cover.slice(4);
   }

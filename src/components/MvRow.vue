@@ -20,13 +20,28 @@
         <div class="title">
           <router-link :to="'/mv/' + getID(mv)">{{ getTitle(mv) }}</router-link>
         </div>
-        <div class="artist" v-html="getSubtitle(mv)"></div>
+        <div class="artist">
+          <template v-if="subtitle === 'artist'">
+            <template
+              v-for="(artist, index) in getArtists(mv)"
+              :key="artist.id"
+            >
+              <span v-if="index > 0">, </span>
+              <router-link :to="'/artist/' + artist.id">{{
+                artist.name
+              }}</router-link>
+            </template>
+          </template>
+          <template v-else>{{ getSubtitle(mv) }}</template>
+        </div>
       </div>
     </div>
   </div>
 </template>
 
 <script>
+import { DEFAULT_COVER_URL } from '@/utils/constants';
+
 export default {
   name: 'CoverVideo',
   props: {
@@ -52,7 +67,8 @@ export default {
     },
     getUrl(mv) {
       let url = mv.imgurl16v9 ?? mv.cover ?? mv.coverUrl;
-      return url.replace(/^http:/, 'https:') + '?param=464y260';
+      // Defend against MV search results that omit every cover URL field.
+      return (url?.replace(/^http:/, 'https:') ?? DEFAULT_COVER_URL) + '?param=464y260';
     },
     getID(mv) {
       if (mv.id !== undefined) return mv.id;
@@ -63,20 +79,22 @@ export default {
       if (mv.title !== undefined) return mv.title;
     },
     getSubtitle(mv) {
-      if (this.subtitle === 'artist') {
-        let artistName = 'null';
-        let artistID = 0;
-        if (mv.artistName !== undefined) {
-          artistName = mv.artistName;
-          artistID = mv.artistId;
-        } else if (mv.creator !== undefined) {
-          artistName = mv.creator[0].userName;
-          artistID = mv.creator[0].userId;
-        }
-        return `<a href="/artist/${artistID}">${artistName}</a>`;
-      } else if (this.subtitle === 'publishTime') {
+      if (this.subtitle === 'publishTime') {
         return mv.publishTime;
       }
+    },
+    getArtists(mv) {
+      if (Array.isArray(mv.artists)) return mv.artists;
+      if (mv.artistName !== undefined) {
+        return [{ id: mv.artistId, name: mv.artistName }];
+      }
+      if (Array.isArray(mv.creator)) {
+        return mv.creator.map(creator => ({
+          id: creator.userId,
+          name: creator.userName,
+        }));
+      }
+      return [];
     },
   },
 };

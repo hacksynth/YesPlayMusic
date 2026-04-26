@@ -1,5 +1,5 @@
 import shortcuts from '@/utils/shortcuts';
-import cloneDeep from 'lodash/cloneDeep';
+import cloneDeep from 'lodash-es/cloneDeep';
 
 export default {
   updateLikedXXX(state, { name, data }) {
@@ -56,7 +56,12 @@ export default {
     state.dailyTracks = dailyTracks;
   },
   updateLastfm(state, session) {
-    state.lastfm = session;
+    const safeSession = session?.connected
+      ? { connected: true, name: session.name }
+      : {};
+    localStorage.removeItem('lastfm');
+    localStorage.setItem('lastfm-status', JSON.stringify(safeSession));
+    state.lastfm = safeSession;
   },
   updateShortcut(state, { id, type, shortcut }) {
     let newShortcut = state.settings.shortcuts.find(s => s.id === id);

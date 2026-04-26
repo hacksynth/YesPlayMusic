@@ -5,8 +5,9 @@
     "paths": {
       "@/*": ["src/*"]
     },
-    "target": "ES6",
-    "module": "commonjs",
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
     "allowSyntheticDefaultImports": true,
     "jsx": "preserve"
   },

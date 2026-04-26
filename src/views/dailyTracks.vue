@@ -14,9 +14,10 @@
 </template>
 
 <script>
-import { mapMutations, mapState } from 'vuex';
+import { mapActions, mapMutations, mapState } from 'vuex';
 import NProgress from 'nprogress';
 import { dailyRecommendTracks } from '@/api/playlist';
+import { normalizeError } from '@/utils/request';
 
 import TrackList from '@/components/TrackList.vue';
 
@@ -46,12 +47,20 @@ export default {
   },
   methods: {
     ...mapMutations(['updateDailyTracks']),
+    ...mapActions(['showToast']),
     loadDailyTracks() {
-      dailyRecommendTracks().then(result => {
-        this.updateDailyTracks(result.data.dailySongs);
-        NProgress.done();
-        this.show = true;
-      });
+      dailyRecommendTracks()
+        .then(result => {
+          this.updateDailyTracks(result.data.dailySongs);
+          NProgress.done();
+          this.show = true;
+        })
+        .catch(error => {
+          const { message } = normalizeError(error);
+          this.showToast(message);
+          NProgress.done();
+          this.show = true;
+        });
     },
   },
 };

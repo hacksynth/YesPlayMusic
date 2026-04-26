@@ -31,7 +31,8 @@ export default {
         this.done = true;
         return;
       }
-      localStorage.setItem('lastfm', JSON.stringify(result.data.session));
+      localStorage.removeItem('lastfm');
+      localStorage.setItem('lastfm-status', JSON.stringify(result.data.session));
       this.$store.commit('updateLastfm', result.data.session);
       this.message = '已成功连接到 Last.fm';
       this.done = true;
@@ -39,7 +40,7 @@ export default {
   },
   methods: {
     close() {
-      window.close();
+      this.$router.push({ name: 'settings' });
     },
   },
 };

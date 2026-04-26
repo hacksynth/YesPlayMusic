@@ -1,11 +1,12 @@
-import Vue from 'vue';
-import VueGtag from 'vue-gtag';
+import { configureCompat, createApp } from 'vue';
+import VueGtag from 'vue-gtag-next';
 import App from './App.vue';
 import router from './router';
-import store from './store';
+import store, { pinia } from './store';
 import i18n from '@/locale';
-import '@/assets/icons';
-import '@/utils/filters';
+import icons from '@/assets/icons';
+import clipboard from '@/utils/clipboard';
+import * as filters from '@/utils/filters';
 import './registerServiceWorker';
 import { dailyTask } from '@/utils/common';
 import '@/assets/css/global.scss';
@@ -28,21 +29,33 @@ console.log(
   'background:unset;color:unset;'
 );
 
-Vue.use(
-  VueGtag,
-  {
-    config: { id: 'G-KMJJCFZDKF' },
-  },
-  router
-);
-Vue.config.productionTip = false;
+configureCompat({
+  MODE: 2,
+});
 
 NProgress.configure({ showSpinner: false, trickleSpeed: 100 });
 dailyTask();
 
-new Vue({
-  i18n,
-  store,
-  router,
-  render: h => h(App),
-}).$mount('#app');
+const app = createApp(App);
+
+app.use(pinia);
+app.use(router);
+app.use(i18n);
+app.use(icons);
+app.use(clipboard);
+app.mixin({
+  methods: filters,
+});
+app.use(
+  VueGtag,
+  {
+    property: {
+      id: 'G-KMJJCFZDKF',
+    },
+  },
+  router
+);
+
+app.config.globalProperties.$store = store;
+
+app.mount('#app');

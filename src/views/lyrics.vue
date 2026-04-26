@@ -7,7 +7,7 @@
     >
       <div
         v-if="
-          (settings.lyricsBackground === 'blur') |
+          (settings.lyricsBackground === 'blur') ||
             (settings.lyricsBackground === 'dynamic')
         "
         class="lyrics-background"
@@ -51,7 +51,7 @@
                   <router-link
                     v-if="hasList()"
                     :to="`${getListPath()}`"
-                    @click.native="toggleLyrics"
+                    @click="toggleLyrics"
                     >{{ currentTrack.name }}
                   </router-link>
                   <span v-else>
@@ -62,7 +62,7 @@
                   <router-link
                     v-if="artist.id !== 0"
                     :to="`/artist/${artist.id}`"
-                    @click.native="toggleLyrics"
+                    @click="toggleLyrics"
                     >{{ artist.name }}
                   </router-link>
                   <span v-else>
@@ -73,7 +73,7 @@
                     <router-link
                       :to="`/album/${album.id}`"
                       :title="album.name"
-                      @click.native="toggleLyrics"
+                      @click="toggleLyrics"
                       >{{ album.name }}
                     </router-link>
                   </span>
@@ -81,7 +81,7 @@
               </div>
               <div class="top-right">
                 <div class="volume-control">
-                  <button-icon :title="$t('player.mute')" @click.native="mute">
+                  <button-icon :title="$t('player.mute')" @click="mute">
                     <svg-icon v-show="volume > 0.5" icon-class="volume" />
                     <svg-icon v-show="volume === 0" icon-class="volume-mute" />
                     <svg-icon
@@ -105,7 +105,7 @@
                 <div class="buttons">
                   <button-icon
                     :title="$t('player.like')"
-                    @click.native="likeATrack(player.currentTrack.id)"
+                    @click="likeATrack(player.currentTrack.id)"
                   >
                     <svg-icon
                       :icon-class="
@@ -115,11 +115,11 @@
                   </button-icon>
                   <button-icon
                     :title="$t('contextMenu.addToPlaylist')"
-                    @click.native="addToPlaylist"
+                    @click="addToPlaylist"
                   >
                     <svg-icon icon-class="plus" />
                   </button-icon>
-                  <!-- <button-icon @click.native="openMenu" title="Menu"
+                  <!-- <button-icon @click="openMenu" title="Menu"
                     ><svg-icon icon-class="more"
                   /></button-icon> -->
                 </div>
@@ -153,7 +153,7 @@
                     : $t('player.repeat')
                 "
                 :class="{ active: player.repeatMode !== 'off' }"
-                @click.native="switchRepeatMode"
+                @click="switchRepeatMode"
               >
                 <svg-icon
                   v-show="player.repeatMode !== 'one'"
@@ -168,27 +168,27 @@
                 <button-icon
                   v-show="!player.isPersonalFM"
                   :title="$t('player.previous')"
-                  @click.native="playPrevTrack"
+                  @click="playPrevTrack"
                 >
                   <svg-icon icon-class="previous" />
                 </button-icon>
                 <button-icon
                   v-show="player.isPersonalFM"
                   title="不喜欢"
-                  @click.native="moveToFMTrash"
+                  @click="moveToFMTrash"
                 >
                   <svg-icon icon-class="thumbs-down" />
                 </button-icon>
                 <button-icon
                   id="play"
                   :title="$t(player.playing ? 'player.pause' : 'player.play')"
-                  @click.native="playOrPause"
+                  @click="playOrPause"
                 >
                   <svg-icon :icon-class="player.playing ? 'pause' : 'play'" />
                 </button-icon>
                 <button-icon
                   :title="$t('player.next')"
-                  @click.native="playNextTrack"
+                  @click="playNextTrack"
                 >
                   <svg-icon icon-class="next" />
                 </button-icon>
@@ -197,7 +197,7 @@
                 v-show="!player.isPersonalFM"
                 :title="$t('player.shuffle')"
                 :class="{ active: player.shuffle }"
-                @click.native="switchShuffle"
+                @click="switchShuffle"
               >
                 <svg-icon icon-class="shuffle" />
               </button-icon>
@@ -208,7 +208,7 @@
                   lyricType === 'translation'
                 "
                 :title="$t('player.translationLyric')"
-                @click.native="switchLyricType"
+                @click="switchLyricType"
               >
                 <span class="lyric-switch-icon">译</span>
               </button-icon>
@@ -219,7 +219,7 @@
                   lyricType === 'romaPronunciation'
                 "
                 :title="$t('player.PronunciationLyric')"
-                @click.native="switchLyricType"
+                @click="switchLyricType"
               >
                 <span class="lyric-switch-icon">音</span>
               </button-icon>
@@ -239,7 +239,7 @@
             <div
               v-for="(line, index) in lyricToShow"
               :id="`line${index}`"
-              :key="index"
+              :key="`${line.rawTime || line.time}-${index}`"
               class="line"
               :class="{
                 highlight: highlightLyricIndex === index,
@@ -250,7 +250,7 @@
               <div class="content">
                 <span
                   v-if="line.contents[0]"
-                  @click.right="openLyricMenu($event, line, 0)"
+                  @contextmenu.prevent="openLyricMenu($event, line, 0)"
                   >{{ line.contents[0] }}</span
                 >
                 <br />
@@ -260,7 +260,7 @@
                     $store.state.settings.showLyricsTranslation
                   "
                   class="translation"
-                  @click.right="openLyricMenu($event, line, 1)"
+                  @contextmenu.prevent="openLyricMenu($event, line, 1)"
                   >{{ line.contents[1] }}</span
                 >
               </div>
@@ -309,7 +309,7 @@ import { formatTrackTime } from '@/utils/common';
 import { getLyric } from '@/api/track';
 import { lyricParser, copyLyric } from '@/utils/lyrics';
 import ButtonIcon from '@/components/ButtonIcon.vue';
-import * as Vibrant from 'node-vibrant/dist/vibrant.worker.min.js';
+import { Vibrant } from 'node-vibrant/browser';
 import Color from 'color';
 import { isAccountLoggedIn } from '@/utils/auth';
 import { hasListSource, getListSourcePath } from '@/utils/playList';
@@ -325,6 +325,7 @@ export default {
   data() {
     return {
       lyricsInterval: null,
+      timer: null,
       lyric: [],
       tlyric: [],
       romalyric: [],
@@ -374,7 +375,7 @@ export default {
       if (lyricFiltered.length) {
         lyricFiltered.forEach(l => {
           const { rawTime, time, content } = l;
-          const lyricItem = { time, content, contents: [content] };
+          const lyricItem = { rawTime, time, content, contents: [content] };
           const sameTimeTLyric = this.tlyric.find(
             ({ rawTime: tLyricRawTime }) => tLyricRawTime === rawTime
           );
@@ -405,7 +406,7 @@ export default {
       if (lyricFiltered.length) {
         lyricFiltered.forEach(l => {
           const { rawTime, time, content } = l;
-          const lyricItem = { time, content, contents: [content] };
+          const lyricItem = { rawTime, time, content, contents: [content] };
           const sameTimeRomaLyric = this.romalyric.find(
             ({ rawTime: tLyricRawTime }) => tLyricRawTime === rawTime
           );
@@ -432,7 +433,7 @@ export default {
       };
     },
     noLyric() {
-      return this.lyric.length == 0;
+      return this.lyric.length === 0;
     },
     artist() {
       return this.currentTrack?.ar
@@ -465,23 +466,17 @@ export default {
     this.getLyric();
     this.getCoverColor();
     this.initDate();
-    document.addEventListener('keydown', e => {
-      if (e.key === 'F11') {
-        e.preventDefault();
-        this.fullscreen();
-      }
-    });
-    document.addEventListener('fullscreenchange', () => {
-      this.isFullscreen = !!document.fullscreenElement;
-    });
+    document.addEventListener('keydown', this.handleKeydown);
+    document.addEventListener('fullscreenchange', this.handleFullscreenChange);
   },
   beforeDestroy: function () {
-    if (this.timer) {
-      clearInterval(this.timer);
-    }
-  },
-  destroyed() {
+    clearInterval(this.timer);
     clearInterval(this.lyricsInterval);
+    document.removeEventListener('keydown', this.handleKeydown);
+    document.removeEventListener(
+      'fullscreenchange',
+      this.handleFullscreenChange
+    );
   },
   methods: {
     ...mapMutations(['toggleLyrics', 'updateModal']),
@@ -511,6 +506,15 @@ export default {
       } else {
         document.documentElement.requestFullscreen();
       }
+    },
+    handleKeydown(e) {
+      if (e.key === 'F11') {
+        e.preventDefault();
+        this.fullscreen();
+      }
+    },
+    handleFullscreenChange() {
+      this.isFullscreen = !!document.fullscreenElement;
     },
     addToPlaylist() {
       if (!isAccountLoggedIn()) {
@@ -599,7 +603,7 @@ export default {
       // TODO: 双击选择还会选中文字，考虑搞个右键菜单复制歌词
       let jumpFlag = false;
       this.lyric.filter(function (item) {
-        if (item.content == '纯音乐，请欣赏') {
+        if (item.content === '纯音乐，请欣赏') {
           jumpFlag = true;
         }
       });
@@ -626,6 +630,7 @@ export default {
       }
     },
     setLyricsInterval() {
+      clearInterval(this.lyricsInterval);
       this.lyricsInterval = setInterval(() => {
         const progress = this.player.seek(null, false) ?? 0;
         let oldHighlightLyricIndex = this.highlightLyricIndex;

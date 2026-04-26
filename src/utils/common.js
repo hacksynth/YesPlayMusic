@@ -15,14 +15,7 @@ export function isTrackPlayable(track) {
   if (isAccountLoggedIn() && track?.privilege?.cs) {
     return result;
   }
-  if (track.fee === 1 || track.privilege?.fee === 1) {
-    if (isAccountLoggedIn() && store.state.data.user.vipType === 11) {
-      result.playable = true;
-    } else {
-      result.playable = false;
-      result.reason = 'VIP Only';
-    }
-  } else if (track.fee === 4 || track.privilege?.fee === 4) {
+  if (track.fee === 4 || track.privilege?.fee === 4) {
     result.playable = false;
     result.reason = '付费专辑';
   } else if (

@@ -70,7 +70,7 @@
           </div>
         </div>
 
-        <div v-show="mode == 'qrCode'">
+        <div v-show="mode === 'qrCode'">
           <div v-show="qrCodeSvg" class="qr-code-container">
             <img :src="qrCodeSvg" loading="lazy" />
           </div>
@@ -105,8 +105,9 @@
       <div
         v-show="mode !== 'qrCode'"
         class="notice"
-        v-html="isElectron ? $t('login.noticeElectron') : $t('login.notice')"
-      ></div>
+      >
+        {{ isElectron ? $t('login.noticeElectron') : $t('login.notice') }}
+      </div>
     </div>
   </div>
 </template>
@@ -160,10 +161,14 @@ export default {
   methods: {
     ...mapMutations(['updateData']),
     validatePhone() {
+      const countryCode = this.countryCode.replace('+', '').replace(/\s/g, '');
+      const phoneNumber = this.phoneNumber.trim();
       if (
-        this.countryCode === '' ||
-        this.phone === '' ||
-        this.password === ''
+        countryCode === '' ||
+        phoneNumber === '' ||
+        this.password === '' ||
+        !/^\d{1,4}$/.test(countryCode) ||
+        !/^\d{7,15}$/.test(phoneNumber)
       ) {
         nativeAlert('国家区号或手机号不正确');
         this.processing = false;
@@ -172,12 +177,13 @@ export default {
       return true;
     },
     validateEmail() {
-      const emailReg =
-        /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+      const email = this.email.trim();
+      const emailReg = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (
-        this.email === '' ||
+        email === '' ||
+        email.length > 254 ||
         this.password === '' ||
-        !emailReg.test(this.email)
+        !emailReg.test(email)
       ) {
         nativeAlert('邮箱不正确');
         return false;
@@ -214,13 +220,13 @@ export default {
           });
       }
     },
-    handleLoginResponse(data) {
+    async handleLoginResponse(data) {
       if (!data) {
         this.processing = false;
         return;
       }
       if (data.code === 200) {
-        setCookies(data.cookie);
+        await setCookies(data.cookie);
         this.updateData({ key: 'loginMode', value: 'account' });
         this.$store.dispatch('fetchUserProfile').then(() => {
           this.$store.dispatch('fetchLikedPlaylist').then(() => {
@@ -280,7 +286,6 @@ export default {
             clearInterval(this.qrCodeCheckInterval);
             this.qrCodeInformation = '登录成功，请稍等...';
             result.code = 200;
-            result.cookie = result.cookie.replaceAll(' HTTPOnly', '');
             this.handleLoginResponse(result);
           }
         });

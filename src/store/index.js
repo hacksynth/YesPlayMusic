@@ -1,29 +1,81 @@
-import Vue from 'vue';
-import Vuex from 'vuex';
+import { createPinia, defineStore, setActivePinia } from 'pinia';
 import state from './state';
 import mutations from './mutations';
 import actions from './actions';
 import { changeAppearance } from '@/utils/common';
 import Player from '@/utils/Player';
-// vuex 自定义插件
 import saveToLocalStorage from './plugins/localStorage';
 import { getSendSettingsPlugin } from './plugins/sendSettings';
 
-Vue.use(Vuex);
+export const pinia = createPinia();
+setActivePinia(pinia);
+
+const subscribers = new Set();
+
+function notifySubscribers(mutation, nextState) {
+  subscribers.forEach(subscriber => subscriber(mutation, nextState));
+}
+
+function createMutationActions() {
+  return Object.entries(mutations).reduce((result, [type, mutation]) => {
+    result[type] = function (payload) {
+      mutation(this.$state, payload);
+      notifySubscribers({ type, payload }, this.$state);
+    };
+    return result;
+  }, {});
+}
+
+function createActionMethods() {
+  return Object.entries(actions).reduce((result, [type, action]) => {
+    result[type] = function (payload) {
+      const context = {
+        state: this.$state,
+        commit: (mutationType, mutationPayload) =>
+          this[mutationType](mutationPayload),
+        dispatch: (actionType, actionPayload) => this[actionType](actionPayload),
+      };
+      return action(context, payload);
+    };
+    return result;
+  }, {});
+}
+
+export const useMainStore = defineStore('main', {
+  state: () => state,
+  actions: {
+    ...createMutationActions(),
+    ...createActionMethods(),
+  },
+});
+
+const mainStore = useMainStore(pinia);
+
+const store = {
+  get state() {
+    return mainStore.$state;
+  },
+  commit(type, payload) {
+    return mainStore[type](payload);
+  },
+  dispatch(type, payload) {
+    return mainStore[type](payload);
+  },
+  subscribe(subscriber) {
+    subscribers.add(subscriber);
+    return () => subscribers.delete(subscriber);
+  },
+  get _store() {
+    return mainStore;
+  },
+};
 
 let plugins = [saveToLocalStorage];
 if (process.env.IS_ELECTRON === true) {
   let sendSettings = getSendSettingsPlugin();
   plugins.push(sendSettings);
 }
-const options = {
-  state,
-  mutations,
-  actions,
-  plugins,
-};
-
-const store = new Vuex.Store(options);
+plugins.forEach(plugin => plugin(store));
 
 if ([undefined, null].includes(store.state.settings.lang)) {
   const defaultLang = 'en';

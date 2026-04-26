@@ -1,9 +1,15 @@
-const { TouchBar, nativeImage, ipcMain } = require('electron');
+const { TouchBar, nativeImage } = require('electron');
 const { TouchBarButton, TouchBarSpacer } = TouchBar;
 const path = require('path');
+import {
+  assertPlainObject,
+  createTrustedIpc,
+  validatePayloadTuple,
+} from './ipcSecurity';
 
 export function createTouchBar(window) {
   const renderer = window.webContents;
+  const trustedIpc = createTrustedIpc(window);
 
   // Icon follow touchbar design guideline.
   // See: https://developer.apple.com/design/human-interface-guidelines/macos/touch-bar/touch-bar-icons-and-images/
@@ -71,13 +77,17 @@ export function createTouchBar(window) {
     icon: getNativeIcon('next_up.png'),
   });
 
-  ipcMain.on('player', (e, { playing, likedCurrentTrack }) => {
+  trustedIpc.on(
+    'player',
+    args => validatePayloadTuple(args, [value => assertPlainObject(value)]),
+    (_event, { playing, likedCurrentTrack }) => {
     playButton.icon =
       playing === true ? getNativeIcon('pause.png') : getNativeIcon('play.png');
     likeButton.icon = likedCurrentTrack
       ? getNativeIcon('like_fill.png')
       : getNativeIcon('like.png');
-  });
+    }
+  );
 
   const touchBar = new TouchBar({
     items: [

@@ -56,7 +56,7 @@
         v-show="showLoadMoreButton && hasMore"
         color="grey"
         :loading="loadingMore"
-        @click.native="getPlaylist"
+        @click="getPlaylist"
         >{{ $t('explore.loadMore') }}</ButtonTwoTone
       >
     </div>
@@ -112,7 +112,7 @@ export default {
   },
   activated() {
     this.loadData();
-    this.$parent.$refs.scrollbar.restorePosition();
+    this.$root.$refs.scrollbar?.restorePosition?.();
   },
   methods: {
     ...mapMutations(['togglePlaylistCategory']),

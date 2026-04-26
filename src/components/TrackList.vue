@@ -3,12 +3,12 @@
     <ContextMenu ref="menu">
       <div v-show="type !== 'cloudDisk'" class="item-info">
         <img
-          :src="rightClickedTrackComputed.al.picUrl | resizeImage(224)"
+          :src="resizeImage(rightClickedCoverUrl, 224)"
           loading="lazy"
         />
         <div class="info">
           <div class="title">{{ rightClickedTrackComputed.name }}</div>
-          <div class="subtitle">{{ rightClickedTrackComputed.ar[0].name }}</div>
+          <div class="subtitle">{{ rightClickedArtistName }}</div>
         </div>
       </div>
       <hr v-show="type !== 'cloudDisk'" />
@@ -60,21 +60,33 @@
       >
     </ContextMenu>
 
-    <div :style="listStyles">
-      <TrackListItem
-        v-for="(track, index) in tracks"
-        :key="itemKey === 'id' ? track.id : `${track.id}${index}`"
-        :track-prop="track"
-        :track-no="index + 1"
-        :highlight-playing-track="highlightPlayingTrack"
-        @dblclick.native="playThisList(track.id || track.songId)"
-        @click.right.native="openMenu($event, track, index)"
-      />
+    <div
+      ref="parentRef"
+      class="virtual-track-list"
+      :style="containerStyles"
+    >
+      <div
+        class="virtual-track-list__inner"
+        :style="{ height: `${totalSize}px` }"
+      >
+        <TrackListItem
+          v-for="virtualRow in virtualRows"
+          :key="getTrackKey(tracks[virtualRow.index], virtualRow.index)"
+          :style="getVirtualRowStyle(virtualRow)"
+          :track-prop="tracks[virtualRow.index]"
+          :track-no="virtualRow.index + 1"
+          :highlight-playing-track="highlightPlayingTrack"
+          @play-track="playThisList"
+          @open-menu="(event, track) => openMenu(event, track, virtualRow.index)"
+        />
+      </div>
     </div>
   </div>
 </template>
 
 <script>
+import { computed, ref } from 'vue';
+import { useVirtualizer } from '@tanstack/vue-virtual';
 import { mapActions, mapMutations, mapState } from 'vuex';
 import { addOrRemoveTrackFromPlaylist } from '@/api/playlist';
 import { cloudDiskTrackDelete } from '@/api/user';
@@ -83,6 +95,7 @@ import { isAccountLoggedIn } from '@/utils/auth';
 import TrackListItem from '@/components/TrackListItem.vue';
 import ContextMenu from '@/components/ContextMenu.vue';
 import locale from '@/locale';
+import { DEFAULT_COVER_URL } from '@/utils/constants';
 
 export default {
   name: 'TrackList',
@@ -142,6 +155,21 @@ export default {
       default: 'id',
     },
   },
+  setup(props) {
+    const parentRef = ref(null);
+    const rowVirtualizer = useVirtualizer({
+      count: computed(() => props.tracks.length),
+      getScrollElement: () => parentRef.value,
+      estimateSize: () => 64,
+      overscan: 8,
+    });
+
+    return {
+      parentRef,
+      virtualRows: computed(() => rowVirtualizer.value.getVirtualItems()),
+      totalSize: computed(() => rowVirtualizer.value.getTotalSize()),
+    };
+  },
   data() {
     return {
       rightClickedTrack: {
@@ -151,7 +179,6 @@ export default {
         al: { picUrl: '' },
       },
       rightClickedTrackIndex: -1,
-      listStyles: {},
     };
   },
   computed: {
@@ -169,19 +196,41 @@ export default {
           }
         : this.rightClickedTrack;
     },
-  },
-  created() {
-    if (this.type === 'tracklist') {
-      this.listStyles = {
-        display: 'grid',
-        gap: '4px',
-        gridTemplateColumns: `repeat(${this.columnNumber}, 1fr)`,
+    rightClickedCoverUrl() {
+      // Defend against context menu tracks missing al.picUrl.
+      return this.rightClickedTrackComputed.al?.picUrl ?? DEFAULT_COVER_URL;
+    },
+    rightClickedArtistName() {
+      // Defend against context menu tracks missing ar[0].name.
+      return this.rightClickedTrackComputed.ar?.[0]?.name ?? '未知艺术家';
+    },
+    containerStyles() {
+      return {
+        height: 'min(70vh, 720px)',
+        overflow: 'auto',
+        contain: 'strict',
       };
-    }
+    },
   },
   methods: {
     ...mapMutations(['updateModal']),
     ...mapActions(['nextTrack', 'showToast', 'likeATrack']),
+    getTrackKey(track, index) {
+      if (!track) return index;
+      return this.itemKey === 'id' ? track.id : `${track.id}-${index}`;
+    },
+    getVirtualRowStyle(virtualRow) {
+      const base = {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '64px',
+        transform: `translateY(${virtualRow.start}px)`,
+      };
+
+      return base;
+    },
     openMenu(e, track, index = -1) {
       this.rightClickedTrack = track;
       this.rightClickedTrackIndex = index;
@@ -309,4 +358,14 @@ export default {
 };
 </script>
 
-<style lang="scss" scoped></style>
+<style lang="scss" scoped>
+.virtual-track-list {
+  position: relative;
+  width: 100%;
+}
+
+.virtual-track-list__inner {
+  position: relative;
+  width: 100%;
+}
+</style>
